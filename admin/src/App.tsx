@@ -16,7 +16,7 @@ import "@refinedev/antd/dist/reset.css";
 
 const AdminApp = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/admin">
       <ConfigProvider locale={ruRU}>
         <AntdApp>
           <Refine

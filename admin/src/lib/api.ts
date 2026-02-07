@@ -35,7 +35,7 @@ api.interceptors.response.use(
       if (!refreshToken) {
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
-        window.location.href = "/login";
+        window.location.href = "/admin/login";
         return Promise.reject(error);
       }
 
@@ -53,7 +53,7 @@ api.interceptors.response.use(
       } catch {
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
-        window.location.href = "/login";
+        window.location.href = "/admin/login";
         return Promise.reject(error);
       }
     }
