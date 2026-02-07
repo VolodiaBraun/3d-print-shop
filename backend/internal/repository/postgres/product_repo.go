@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -69,10 +70,11 @@ func (r *ProductRepo) List(ctx context.Context, filter domain.ProductFilter) (*d
 		query = query.Where("material IN ?", filter.Materials)
 	}
 
-	// Search in name and description
+	// Full-text search in name and description (Russian config)
 	if filter.Search != "" {
-		search := "%" + filter.Search + "%"
-		query = query.Where("name ILIKE ? OR description ILIKE ?", search, search)
+		words := strings.Fields(filter.Search)
+		tsQuery := strings.Join(words, " & ")
+		query = query.Where("search_vector @@ to_tsquery('russian', ?)", tsQuery)
 	}
 
 	// Count total before pagination
@@ -81,7 +83,7 @@ func (r *ProductRepo) List(ctx context.Context, filter domain.ProductFilter) (*d
 		return nil, err
 	}
 
-	// Sorting
+	// Sorting (relevance-first when searching without explicit sort)
 	switch filter.Sort {
 	case "price_asc":
 		query = query.Order("price ASC")
@@ -94,7 +96,13 @@ func (r *ProductRepo) List(ctx context.Context, filter domain.ProductFilter) (*d
 	case "popular":
 		query = query.Order("sales_count DESC")
 	default:
-		query = query.Order("created_at DESC")
+		if filter.Search != "" {
+			words := strings.Fields(filter.Search)
+			tsQuery := strings.Join(words, " & ")
+			query = query.Order(gorm.Expr("ts_rank(search_vector, to_tsquery('russian', ?)) DESC", tsQuery))
+		} else {
+			query = query.Order("created_at DESC")
+		}
 	}
 
 	// Pagination
@@ -152,4 +160,18 @@ func (r *ProductRepo) Update(ctx context.Context, product *domain.Product) error
 
 func (r *ProductRepo) SoftDelete(ctx context.Context, id int) error {
 	return r.db.WithContext(ctx).Model(&domain.Product{}).Where("id = ?", id).Update("is_active", false).Error
+}
+
+func (r *ProductRepo) SearchSuggestions(ctx context.Context, query string, limit int) ([]string, error) {
+	if limit <= 0 || limit > 10 {
+		limit = 5
+	}
+	var names []string
+	err := r.db.WithContext(ctx).
+		Model(&domain.Product{}).
+		Where("is_active = true AND name ILIKE ?", query+"%").
+		Order("sales_count DESC, name ASC").
+		Limit(limit).
+		Pluck("name", &names).Error
+	return names, err
 }

@@ -27,6 +27,7 @@ func NewProductHandler(productService *service.ProductService) *ProductHandler {
 func (h *ProductHandler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 	rg.GET("/products", h.List)
 	rg.GET("/products/:slug", h.GetBySlug)
+	rg.GET("/search/suggestions", h.SearchSuggestions)
 }
 
 // RegisterAdminRoutes registers admin product routes.
@@ -169,4 +170,21 @@ func (h *ProductHandler) Delete(c *gin.Context) {
 	}
 
 	response.NoContent(c)
+}
+
+// SearchSuggestions handles GET /api/v1/search/suggestions?q=...
+func (h *ProductHandler) SearchSuggestions(c *gin.Context) {
+	q := c.Query("q")
+	if q == "" {
+		response.OK(c, []string{})
+		return
+	}
+
+	suggestions, err := h.productService.SearchSuggestions(c.Request.Context(), q, 5)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+
+	response.OK(c, suggestions)
 }

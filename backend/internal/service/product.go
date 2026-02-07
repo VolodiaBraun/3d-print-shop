@@ -208,6 +208,11 @@ func (s *ProductService) List(ctx context.Context, filter domain.ProductFilter) 
 	return s.repo.List(ctx, filter)
 }
 
+// SearchSuggestions returns product name suggestions for autocomplete.
+func (s *ProductService) SearchSuggestions(ctx context.Context, query string, limit int) ([]string, error) {
+	return s.repo.SearchSuggestions(ctx, query, limit)
+}
+
 // Delete soft-deletes a product (sets is_active=false).
 func (s *ProductService) Delete(ctx context.Context, id int) error {
 	if _, err := s.repo.FindByID(ctx, id); err != nil {
