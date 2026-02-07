@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -24,6 +25,7 @@ func NewProductHandler(productService *service.ProductService) *ProductHandler {
 
 // RegisterPublicRoutes registers public product routes.
 func (h *ProductHandler) RegisterPublicRoutes(rg *gin.RouterGroup) {
+	rg.GET("/products", h.List)
 	rg.GET("/products/:slug", h.GetBySlug)
 }
 
@@ -33,6 +35,47 @@ func (h *ProductHandler) RegisterAdminRoutes(rg *gin.RouterGroup) {
 	products.POST("", h.Create)
 	products.PUT("/:id", h.Update)
 	products.DELETE("/:id", h.Delete)
+}
+
+// List handles GET /api/v1/products?page=1&limit=20&category=slug&min_price=100&max_price=5000&material=PLA,PETG&sort=price_asc
+func (h *ProductHandler) List(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	filter := domain.ProductFilter{
+		CategorySlug: c.Query("category"),
+		Search:       c.Query("search"),
+		Sort:         c.Query("sort"),
+		Page:         page,
+		Limit:        limit,
+	}
+
+	if v := c.Query("min_price"); v != "" {
+		if p, err := strconv.ParseFloat(v, 64); err == nil {
+			filter.MinPrice = &p
+		}
+	}
+	if v := c.Query("max_price"); v != "" {
+		if p, err := strconv.ParseFloat(v, 64); err == nil {
+			filter.MaxPrice = &p
+		}
+	}
+	if v := c.Query("material"); v != "" {
+		filter.Materials = strings.Split(v, ",")
+	}
+
+	result, err := h.productService.List(c.Request.Context(), filter)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+
+	response.Paginated(c, result.Products, response.PaginationMeta{
+		Page:       result.Page,
+		Limit:      result.Limit,
+		Total:      result.Total,
+		TotalPages: result.TotalPages,
+	})
 }
 
 // Create handles POST /api/v1/admin/products

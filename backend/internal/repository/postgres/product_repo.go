@@ -41,6 +41,111 @@ func (r *ProductRepo) FindBySlug(ctx context.Context, slug string) (*domain.Prod
 	return &product, err
 }
 
+func (r *ProductRepo) List(ctx context.Context, filter domain.ProductFilter) (*domain.ProductListResult, error) {
+	query := r.db.WithContext(ctx).Model(&domain.Product{}).Where("is_active = true")
+
+	// Filter by category (including subcategories)
+	if filter.CategorySlug != "" {
+		var categoryIDs []int
+		// Find category by slug, then collect all descendant IDs
+		var cat domain.Category
+		if err := r.db.Where("slug = ?", filter.CategorySlug).First(&cat).Error; err == nil {
+			categoryIDs = append(categoryIDs, cat.ID)
+			categoryIDs = append(categoryIDs, r.collectChildIDs(cat.ID)...)
+			query = query.Where("category_id IN ?", categoryIDs)
+		}
+	}
+
+	// Filter by price range
+	if filter.MinPrice != nil {
+		query = query.Where("price >= ?", *filter.MinPrice)
+	}
+	if filter.MaxPrice != nil {
+		query = query.Where("price <= ?", *filter.MaxPrice)
+	}
+
+	// Filter by materials
+	if len(filter.Materials) > 0 {
+		query = query.Where("material IN ?", filter.Materials)
+	}
+
+	// Search in name and description
+	if filter.Search != "" {
+		search := "%" + filter.Search + "%"
+		query = query.Where("name ILIKE ? OR description ILIKE ?", search, search)
+	}
+
+	// Count total before pagination
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	// Sorting
+	switch filter.Sort {
+	case "price_asc":
+		query = query.Order("price ASC")
+	case "price_desc":
+		query = query.Order("price DESC")
+	case "rating":
+		query = query.Order("rating DESC")
+	case "newest":
+		query = query.Order("created_at DESC")
+	case "popular":
+		query = query.Order("sales_count DESC")
+	default:
+		query = query.Order("created_at DESC")
+	}
+
+	// Pagination
+	if filter.Page < 1 {
+		filter.Page = 1
+	}
+	if filter.Limit < 1 || filter.Limit > 100 {
+		filter.Limit = 20
+	}
+	offset := (filter.Page - 1) * filter.Limit
+
+	var products []domain.Product
+	err := query.
+		Preload("Category").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order ASC, id ASC")
+		}).
+		Offset(offset).
+		Limit(filter.Limit).
+		Find(&products).Error
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := int(total) / filter.Limit
+	if int(total)%filter.Limit > 0 {
+		totalPages++
+	}
+
+	return &domain.ProductListResult{
+		Products:   products,
+		Total:      total,
+		Page:       filter.Page,
+		Limit:      filter.Limit,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// collectChildIDs recursively collects all child category IDs.
+func (r *ProductRepo) collectChildIDs(parentID int) []int {
+	var children []domain.Category
+	r.db.Where("parent_id = ?", parentID).Find(&children)
+
+	var ids []int
+	for _, child := range children {
+		ids = append(ids, child.ID)
+		ids = append(ids, r.collectChildIDs(child.ID)...)
+	}
+	return ids
+}
+
 func (r *ProductRepo) Update(ctx context.Context, product *domain.Product) error {
 	return r.db.WithContext(ctx).Save(product).Error
 }

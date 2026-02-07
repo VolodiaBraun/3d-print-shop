@@ -72,11 +72,33 @@ func (Product) TableName() string {
 	return "products"
 }
 
+// ProductFilter defines filters for listing products.
+type ProductFilter struct {
+	CategorySlug string   // filter by category slug (includes subcategories)
+	MinPrice     *float64 // min price
+	MaxPrice     *float64 // max price
+	Materials    []string // filter by materials
+	Search       string   // search in name/description
+	Sort         string   // price_asc, price_desc, rating, newest, popular
+	Page         int      // page number (1-based)
+	Limit        int      // items per page
+}
+
+// ProductListResult contains paginated product list.
+type ProductListResult struct {
+	Products   []Product `json:"products"`
+	Total      int64     `json:"total"`
+	Page       int       `json:"page"`
+	Limit      int       `json:"limit"`
+	TotalPages int       `json:"totalPages"`
+}
+
 // ProductRepository defines the interface for product data access.
 type ProductRepository interface {
 	Create(ctx context.Context, product *Product) error
 	FindByID(ctx context.Context, id int) (*Product, error)
 	FindBySlug(ctx context.Context, slug string) (*Product, error)
+	List(ctx context.Context, filter ProductFilter) (*ProductListResult, error)
 	Update(ctx context.Context, product *Product) error
 	SoftDelete(ctx context.Context, id int) error
 }

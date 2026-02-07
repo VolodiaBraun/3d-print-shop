@@ -203,6 +203,11 @@ func (s *ProductService) Update(ctx context.Context, id int, input UpdateProduct
 	return product, nil
 }
 
+// List returns a paginated, filtered list of products.
+func (s *ProductService) List(ctx context.Context, filter domain.ProductFilter) (*domain.ProductListResult, error) {
+	return s.repo.List(ctx, filter)
+}
+
 // Delete soft-deletes a product (sets is_active=false).
 func (s *ProductService) Delete(ctx context.Context, id int) error {
 	if _, err := s.repo.FindByID(ctx, id); err != nil {
