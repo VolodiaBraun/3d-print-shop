@@ -2,25 +2,32 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
 
 	"go.uber.org/zap"
 
+	"github.com/brown/3d-print-shop/internal/cache"
 	"github.com/brown/3d-print-shop/internal/domain"
 )
 
+const productCachePrefix = "products:list:"
+const productCacheTTL = 5 * time.Minute
+
 // ProductService handles product business logic.
 type ProductService struct {
-	repo     domain.ProductRepository
-	catRepo  domain.CategoryRepository
-	log      *zap.Logger
+	repo    domain.ProductRepository
+	catRepo domain.CategoryRepository
+	cache   *cache.Store
+	log     *zap.Logger
 }
 
 // NewProductService creates a new product service.
-func NewProductService(repo domain.ProductRepository, catRepo domain.CategoryRepository, log *zap.Logger) *ProductService {
-	return &ProductService{repo: repo, catRepo: catRepo, log: log}
+func NewProductService(repo domain.ProductRepository, catRepo domain.CategoryRepository, cache *cache.Store, log *zap.Logger) *ProductService {
+	return &ProductService{repo: repo, catRepo: catRepo, cache: cache, log: log}
 }
 
 // CreateProductInput represents the input for creating a product.
@@ -116,6 +123,7 @@ func (s *ProductService) Create(ctx context.Context, input CreateProductInput) (
 		return nil, fmt.Errorf("create product: %w", err)
 	}
 
+	s.invalidateProductCache(ctx)
 	s.log.Info("product created", zap.Int("id", product.ID), zap.String("slug", product.Slug))
 	return product, nil
 }
@@ -199,13 +207,45 @@ func (s *ProductService) Update(ctx context.Context, id int, input UpdateProduct
 		return nil, fmt.Errorf("update product: %w", err)
 	}
 
+	s.invalidateProductCache(ctx)
 	s.log.Info("product updated", zap.Int("id", product.ID))
 	return product, nil
 }
 
-// List returns a paginated, filtered list of products.
+// List returns a paginated, filtered list of products (cached for 5 min).
 func (s *ProductService) List(ctx context.Context, filter domain.ProductFilter) (*domain.ProductListResult, error) {
-	return s.repo.List(ctx, filter)
+	cacheKey := s.productListCacheKey(filter)
+
+	var result domain.ProductListResult
+	if found, err := s.cache.Get(ctx, cacheKey, &result); err == nil && found {
+		s.log.Debug("product list served from cache", zap.String("key", cacheKey))
+		return &result, nil
+	}
+
+	res, err := s.repo.List(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.cache.Set(ctx, cacheKey, res, productCacheTTL); err != nil {
+		s.log.Warn("failed to cache product list", zap.Error(err))
+	}
+
+	return res, nil
+}
+
+func (s *ProductService) productListCacheKey(filter domain.ProductFilter) string {
+	raw := fmt.Sprintf("%s|%v|%v|%v|%s|%s|%d|%d",
+		filter.CategorySlug, filter.MinPrice, filter.MaxPrice, filter.Materials,
+		filter.Search, filter.Sort, filter.Page, filter.Limit)
+	h := sha256.Sum256([]byte(raw))
+	return productCachePrefix + hex.EncodeToString(h[:8])
+}
+
+func (s *ProductService) invalidateProductCache(ctx context.Context) {
+	if err := s.cache.DeleteByPrefix(ctx, productCachePrefix); err != nil {
+		s.log.Warn("failed to invalidate product cache", zap.Error(err))
+	}
 }
 
 // SearchSuggestions returns product name suggestions for autocomplete.
@@ -223,6 +263,7 @@ func (s *ProductService) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("soft delete product: %w", err)
 	}
 
+	s.invalidateProductCache(ctx)
 	s.log.Info("product soft-deleted", zap.Int("id", id))
 	return nil
 }

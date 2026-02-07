@@ -72,10 +72,13 @@ func main() {
 	jwtManager := jwtpkg.NewManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 	authTokenService := service.NewAuthTokenService(jwtManager, redisClient, log)
 
+	// Cache store
+	cacheStore := cache.NewStore(redisClient)
+
 	// Services
 	authService := service.NewAuthService(userRepo, authTokenService, log)
-	categoryService := service.NewCategoryService(categoryRepo, log)
-	productService := service.NewProductService(productRepo, categoryRepo, log)
+	categoryService := service.NewCategoryService(categoryRepo, cacheStore, log)
+	productService := service.NewProductService(productRepo, categoryRepo, cacheStore, log)
 	imageService := service.NewImageService(productImageRepo, productRepo, s3Client, log)
 
 	// Handlers

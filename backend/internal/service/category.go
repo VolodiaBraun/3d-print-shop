@@ -10,18 +10,23 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/brown/3d-print-shop/internal/cache"
 	"github.com/brown/3d-print-shop/internal/domain"
 )
 
+const categoryCacheKey = "categories:tree"
+const categoryCacheTTL = 30 * time.Minute
+
 // CategoryService handles category business logic.
 type CategoryService struct {
-	repo domain.CategoryRepository
-	log  *zap.Logger
+	repo  domain.CategoryRepository
+	cache *cache.Store
+	log   *zap.Logger
 }
 
 // NewCategoryService creates a new category service.
-func NewCategoryService(repo domain.CategoryRepository, log *zap.Logger) *CategoryService {
-	return &CategoryService{repo: repo, log: log}
+func NewCategoryService(repo domain.CategoryRepository, cache *cache.Store, log *zap.Logger) *CategoryService {
+	return &CategoryService{repo: repo, cache: cache, log: log}
 }
 
 // CreateCategoryInput represents the input for creating a category.
@@ -90,13 +95,35 @@ func (s *CategoryService) Create(ctx context.Context, input CreateCategoryInput)
 		return nil, fmt.Errorf("create category: %w", err)
 	}
 
+	s.invalidateCategoryCache(ctx)
 	s.log.Info("category created", zap.Int("id", cat.ID), zap.String("slug", cat.Slug))
 	return cat, nil
 }
 
-// GetTree returns the full category tree.
+// GetTree returns the full category tree (cached for 30 min).
 func (s *CategoryService) GetTree(ctx context.Context) ([]domain.Category, error) {
-	return s.repo.FindAll(ctx)
+	var categories []domain.Category
+	if found, err := s.cache.Get(ctx, categoryCacheKey, &categories); err == nil && found {
+		s.log.Debug("categories served from cache")
+		return categories, nil
+	}
+
+	categories, err := s.repo.FindAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.cache.Set(ctx, categoryCacheKey, categories, categoryCacheTTL); err != nil {
+		s.log.Warn("failed to cache categories", zap.Error(err))
+	}
+
+	return categories, nil
+}
+
+func (s *CategoryService) invalidateCategoryCache(ctx context.Context) {
+	if err := s.cache.Delete(ctx, categoryCacheKey); err != nil {
+		s.log.Warn("failed to invalidate category cache", zap.Error(err))
+	}
 }
 
 // GetByID returns a category by ID.
@@ -152,6 +179,7 @@ func (s *CategoryService) Update(ctx context.Context, id int, input UpdateCatego
 		return nil, fmt.Errorf("update category: %w", err)
 	}
 
+	s.invalidateCategoryCache(ctx)
 	s.log.Info("category updated", zap.Int("id", cat.ID))
 	return cat, nil
 }
@@ -182,6 +210,7 @@ func (s *CategoryService) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("delete category: %w", err)
 	}
 
+	s.invalidateCategoryCache(ctx)
 	s.log.Info("category deleted", zap.Int("id", id))
 	return nil
 }
