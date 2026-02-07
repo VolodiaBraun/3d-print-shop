@@ -22,6 +22,12 @@ export interface ProductImage {
   displayOrder: number;
 }
 
+export interface Dimensions {
+  length?: number;
+  width?: number;
+  height?: number;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -33,7 +39,7 @@ export interface Product {
   stockQuantity: number;
   sku?: string;
   weight?: number;
-  dimensions?: string;
+  dimensions?: Dimensions;
   material?: string;
   printTime?: number;
   categoryId?: number;
