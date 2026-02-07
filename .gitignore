@@ -1,0 +1,54 @@
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+NUL
+nul
+
+# Go
+/backend/bin/
+/backend/tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# Node.js
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Logs
+*.log
+logs/
+
+# Docker volumes (if local)
+data/
+
+# Temporary files
+tmp/
+temp/
+
+# Build artifacts
+build/
+
+# BMAD internal
+_bmad/
+_bmad-output/
