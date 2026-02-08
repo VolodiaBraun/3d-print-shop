@@ -84,6 +84,8 @@ func main() {
 	imageService := service.NewImageService(productImageRepo, productRepo, s3Client, log)
 	cartService := service.NewCartService(cartRepo, productRepo, log)
 	promoService := service.NewPromoService(promoRepo, log)
+	orderRepo := postgres.NewOrderRepo(db)
+	orderService := service.NewOrderService(orderRepo, productRepo, promoService, db, log)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
@@ -92,6 +94,7 @@ func main() {
 	imageHandler := handler.NewImageHandler(imageService)
 	cartHandler := handler.NewCartHandler(cartService)
 	promoHandler := handler.NewPromoHandler(promoService)
+	orderHandler := handler.NewOrderHandler(orderService)
 
 	// Set Gin mode
 	if cfg.IsProduction() {
@@ -130,6 +133,7 @@ func main() {
 	categoryHandler.RegisterPublicRoutes(v1)
 	productHandler.RegisterPublicRoutes(v1)
 	promoHandler.RegisterPublicRoutes(v1)
+	orderHandler.RegisterPublicRoutes(v1)
 	cartHandler.RegisterRoutes(v1, middleware.AuthRequired(jwtManager))
 
 	// Protected admin routes

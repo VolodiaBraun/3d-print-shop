@@ -102,5 +102,6 @@ type ProductRepository interface {
 	List(ctx context.Context, filter ProductFilter) (*ProductListResult, error)
 	Update(ctx context.Context, product *Product) error
 	SoftDelete(ctx context.Context, id int) error
+	FindByIDs(ctx context.Context, ids []int) ([]Product, error)
 	SearchSuggestions(ctx context.Context, query string, limit int) ([]string, error)
 }

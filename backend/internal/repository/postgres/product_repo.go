@@ -175,6 +175,12 @@ func (r *ProductRepo) collectChildIDs(parentID int) []int {
 	return ids
 }
 
+func (r *ProductRepo) FindByIDs(ctx context.Context, ids []int) ([]domain.Product, error) {
+	var products []domain.Product
+	err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&products).Error
+	return products, err
+}
+
 func (r *ProductRepo) Update(ctx context.Context, product *domain.Product) error {
 	return r.db.WithContext(ctx).Omit("Category", "Images").Save(product).Error
 }
