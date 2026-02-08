@@ -7,10 +7,16 @@ import routerProvider, {
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { App as AntdApp, ConfigProvider } from "antd";
 import ruRU from "antd/locale/ru_RU";
+import {
+  DashboardOutlined,
+  FolderOutlined,
+} from "@ant-design/icons";
 
+import { dataProvider } from "./providers/dataProvider";
 import { authProvider } from "./providers/authProvider";
 import { LoginPage } from "./pages/login";
 import { DashboardPage } from "./pages/dashboard";
+import { CategoryList } from "./pages/categories/list";
 
 import "@refinedev/antd/dist/reset.css";
 
@@ -20,6 +26,7 @@ const AdminApp = () => {
       <ConfigProvider locale={ruRU}>
         <AntdApp>
           <Refine
+            dataProvider={dataProvider}
             authProvider={authProvider}
             routerProvider={routerProvider}
             notificationProvider={useNotificationProvider}
@@ -27,7 +34,12 @@ const AdminApp = () => {
               {
                 name: "dashboard",
                 list: "/",
-                meta: { label: "Dashboard" },
+                meta: { label: "Главная", icon: <DashboardOutlined /> },
+              },
+              {
+                name: "categories",
+                list: "/categories",
+                meta: { label: "Категории", icon: <FolderOutlined /> },
               },
             ]}
             options={{
@@ -45,7 +57,7 @@ const AdminApp = () => {
                     <ThemedLayoutV2
                       Title={() => (
                         <div style={{ padding: "0 12px", fontWeight: 600 }}>
-                          3D Print Shop
+                          АВАНГАРД
                         </div>
                       )}
                     >
@@ -55,6 +67,7 @@ const AdminApp = () => {
                 }
               >
                 <Route index element={<DashboardPage />} />
+                <Route path="/categories" element={<CategoryList />} />
               </Route>
 
               <Route
