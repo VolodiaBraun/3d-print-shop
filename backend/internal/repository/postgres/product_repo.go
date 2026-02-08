@@ -26,7 +26,12 @@ func (r *ProductRepo) Create(ctx context.Context, product *domain.Product) error
 
 func (r *ProductRepo) FindByID(ctx context.Context, id int) (*domain.Product, error) {
 	var product domain.Product
-	err := r.db.WithContext(ctx).Preload("Category").First(&product, id).Error
+	err := r.db.WithContext(ctx).
+		Preload("Category").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("is_main DESC, display_order ASC")
+		}).
+		First(&product, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, domain.ErrProductNotFound
 	}
@@ -35,7 +40,12 @@ func (r *ProductRepo) FindByID(ctx context.Context, id int) (*domain.Product, er
 
 func (r *ProductRepo) FindBySlug(ctx context.Context, slug string) (*domain.Product, error) {
 	var product domain.Product
-	err := r.db.WithContext(ctx).Preload("Category").Where("slug = ?", slug).First(&product).Error
+	err := r.db.WithContext(ctx).
+		Preload("Category").
+		Preload("Images", func(db *gorm.DB) *gorm.DB {
+			return db.Order("is_main DESC, display_order ASC")
+		}).
+		Where("slug = ?", slug).First(&product).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, domain.ErrProductNotFound
 	}
