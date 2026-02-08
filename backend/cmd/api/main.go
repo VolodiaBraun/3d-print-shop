@@ -61,6 +61,7 @@ func main() {
 	productRepo := postgres.NewProductRepo(db)
 	productImageRepo := postgres.NewProductImageRepo(db)
 	cartRepo := postgres.NewCartRepo(db)
+	promoRepo := postgres.NewPromoRepo(db)
 
 	// Connect to Redis
 	redisClient, err := cache.NewRedis(cfg.Redis, log)
@@ -82,6 +83,7 @@ func main() {
 	productService := service.NewProductService(productRepo, categoryRepo, cacheStore, log)
 	imageService := service.NewImageService(productImageRepo, productRepo, s3Client, log)
 	cartService := service.NewCartService(cartRepo, productRepo, log)
+	promoService := service.NewPromoService(promoRepo, log)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
@@ -89,6 +91,7 @@ func main() {
 	productHandler := handler.NewProductHandler(productService)
 	imageHandler := handler.NewImageHandler(imageService)
 	cartHandler := handler.NewCartHandler(cartService)
+	promoHandler := handler.NewPromoHandler(promoService)
 
 	// Set Gin mode
 	if cfg.IsProduction() {
@@ -126,6 +129,7 @@ func main() {
 	authHandler.RegisterRoutes(v1)
 	categoryHandler.RegisterPublicRoutes(v1)
 	productHandler.RegisterPublicRoutes(v1)
+	promoHandler.RegisterPublicRoutes(v1)
 	cartHandler.RegisterRoutes(v1, middleware.AuthRequired(jwtManager))
 
 	// Protected admin routes
@@ -140,6 +144,7 @@ func main() {
 	categoryHandler.RegisterAdminRoutes(admin)
 	productHandler.RegisterAdminRoutes(admin)
 	imageHandler.RegisterAdminRoutes(admin)
+	promoHandler.RegisterAdminRoutes(admin)
 
 	// Create HTTP server
 	srv := &http.Server{

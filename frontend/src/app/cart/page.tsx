@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingCart, Trash2, Minus, Plus, ArrowRight } from "lucide-react";
+import { ShoppingCart, Trash2, Minus, Plus, ArrowRight, Tag, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart-context";
+import { validatePromoCode, type PromoValidationResult } from "@/lib/api";
 
 function formatPrice(price: number): string {
   return new Intl.NumberFormat("ru-RU").format(price) + " \u20BD";
@@ -13,6 +15,39 @@ function formatPrice(price: number): string {
 export default function CartPage() {
   const { items, updateQuantity, removeItem, clearCart, totalItems, totalPrice } =
     useCart();
+
+  const [promoCode, setPromoCode] = useState("");
+  const [promoResult, setPromoResult] = useState<PromoValidationResult | null>(null);
+  const [promoError, setPromoError] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+
+  const discountAmount = promoResult?.discountAmount ?? 0;
+  const finalPrice = Math.max(0, totalPrice - discountAmount);
+
+  async function handleApplyPromo() {
+    const code = promoCode.trim();
+    if (!code) return;
+
+    setPromoLoading(true);
+    setPromoError("");
+    try {
+      const result = await validatePromoCode(code, totalPrice);
+      setPromoResult(result);
+    } catch (err: unknown) {
+      setPromoResult(null);
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      const msg = axiosErr?.response?.data?.message || "Промокод не найден";
+      setPromoError(msg);
+    } finally {
+      setPromoLoading(false);
+    }
+  }
+
+  function handleRemovePromo() {
+    setPromoResult(null);
+    setPromoCode("");
+    setPromoError("");
+  }
 
   if (items.length === 0) {
     return (
@@ -173,10 +208,73 @@ export default function CartPage() {
               </div>
             </div>
 
+            {/* Promo code */}
             <div className="mt-4 border-t border-border pt-4">
+              {promoResult ? (
+                <div className="flex items-center justify-between rounded-md bg-green-500/10 px-3 py-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Tag className="h-4 w-4 text-green-600" />
+                    <span className="font-medium text-green-700">
+                      {promoResult.code}
+                    </span>
+                    <span className="text-green-600">
+                      &minus;{formatPrice(promoResult.discountAmount)}
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleRemovePromo}
+                    className="text-green-600 hover:text-green-800 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Промокод"
+                      value={promoCode}
+                      onChange={(e) => {
+                        setPromoCode(e.target.value);
+                        if (promoError) setPromoError("");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleApplyPromo();
+                      }}
+                      className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 px-4"
+                      disabled={promoLoading || !promoCode.trim()}
+                      onClick={handleApplyPromo}
+                    >
+                      {promoLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Применить"
+                      )}
+                    </Button>
+                  </div>
+                  {promoError && (
+                    <p className="mt-2 text-sm text-destructive">{promoError}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 border-t border-border pt-4">
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-sm text-green-600 mb-2">
+                  <span>Скидка</span>
+                  <span>&minus;{formatPrice(discountAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-lg font-bold">
                 <span>К оплате</span>
-                <span>{formatPrice(totalPrice)}</span>
+                <span>{formatPrice(finalPrice)}</span>
               </div>
             </div>
 

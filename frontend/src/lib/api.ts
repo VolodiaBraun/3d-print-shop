@@ -45,4 +45,24 @@ export async function getSearchSuggestions(q: string): Promise<string[]> {
   return data.data;
 }
 
+export interface PromoValidationResult {
+  valid: boolean;
+  code: string;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  discountAmount: number;
+  message?: string;
+}
+
+export async function validatePromoCode(
+  code: string,
+  orderTotal: number
+): Promise<PromoValidationResult> {
+  const { data } = await api.post<ApiResponse<PromoValidationResult>>(
+    "/promo/validate",
+    { code, orderTotal }
+  );
+  return data.data;
+}
+
 export default api;
