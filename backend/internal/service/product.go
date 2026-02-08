@@ -235,9 +235,9 @@ func (s *ProductService) List(ctx context.Context, filter domain.ProductFilter) 
 }
 
 func (s *ProductService) productListCacheKey(filter domain.ProductFilter) string {
-	raw := fmt.Sprintf("%s|%v|%v|%v|%s|%s|%d|%d",
+	raw := fmt.Sprintf("%s|%v|%v|%v|%s|%s|%d|%d|%v",
 		filter.CategorySlug, filter.MinPrice, filter.MaxPrice, filter.Materials,
-		filter.Search, filter.Sort, filter.Page, filter.Limit)
+		filter.Search, filter.Sort, filter.Page, filter.Limit, filter.IncludeInactive)
 	h := sha256.Sum256([]byte(raw))
 	return productCachePrefix + hex.EncodeToString(h[:8])
 }

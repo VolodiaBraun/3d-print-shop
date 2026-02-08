@@ -43,7 +43,10 @@ func (r *ProductRepo) FindBySlug(ctx context.Context, slug string) (*domain.Prod
 }
 
 func (r *ProductRepo) List(ctx context.Context, filter domain.ProductFilter) (*domain.ProductListResult, error) {
-	query := r.db.WithContext(ctx).Model(&domain.Product{}).Where("is_active = true")
+	query := r.db.WithContext(ctx).Model(&domain.Product{})
+	if !filter.IncludeInactive {
+		query = query.Where("is_active = true")
+	}
 
 	// Filter by category (including subcategories)
 	if filter.CategorySlug != "" {

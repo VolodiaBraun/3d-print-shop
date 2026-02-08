@@ -74,14 +74,15 @@ func (Product) TableName() string {
 
 // ProductFilter defines filters for listing products.
 type ProductFilter struct {
-	CategorySlug string   // filter by category slug (includes subcategories)
-	MinPrice     *float64 // min price
-	MaxPrice     *float64 // max price
-	Materials    []string // filter by materials
-	Search       string   // search in name/description
-	Sort         string   // price_asc, price_desc, rating, newest, popular
-	Page         int      // page number (1-based)
-	Limit        int      // items per page
+	CategorySlug    string   // filter by category slug (includes subcategories)
+	MinPrice        *float64 // min price
+	MaxPrice        *float64 // max price
+	Materials       []string // filter by materials
+	Search          string   // search in name/description
+	Sort            string   // price_asc, price_desc, rating, newest, popular
+	Page            int      // page number (1-based)
+	Limit           int      // items per page
+	IncludeInactive bool     // when true, includes inactive products (admin)
 }
 
 // ProductListResult contains paginated product list.

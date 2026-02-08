@@ -33,13 +33,15 @@ func (h *ProductHandler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 // RegisterAdminRoutes registers admin product routes.
 func (h *ProductHandler) RegisterAdminRoutes(rg *gin.RouterGroup) {
 	products := rg.Group("/products")
+	products.GET("", h.AdminList)
+	products.GET("/:id", h.AdminGetByID)
 	products.POST("", h.Create)
 	products.PUT("/:id", h.Update)
 	products.DELETE("/:id", h.Delete)
 }
 
-// List handles GET /api/v1/products?page=1&limit=20&category=slug&min_price=100&max_price=5000&material=PLA,PETG&sort=price_asc
-func (h *ProductHandler) List(c *gin.Context) {
+// parseProductFilter extracts product filter from query parameters.
+func (h *ProductHandler) parseProductFilter(c *gin.Context) domain.ProductFilter {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
@@ -65,6 +67,13 @@ func (h *ProductHandler) List(c *gin.Context) {
 		filter.Materials = strings.Split(v, ",")
 	}
 
+	return filter
+}
+
+// List handles GET /api/v1/products (public, active only)
+func (h *ProductHandler) List(c *gin.Context) {
+	filter := h.parseProductFilter(c)
+
 	result, err := h.productService.List(c.Request.Context(), filter)
 	if err != nil {
 		response.InternalError(c)
@@ -77,6 +86,46 @@ func (h *ProductHandler) List(c *gin.Context) {
 		Total:      result.Total,
 		TotalPages: result.TotalPages,
 	})
+}
+
+// AdminList handles GET /api/v1/admin/products (includes inactive)
+func (h *ProductHandler) AdminList(c *gin.Context) {
+	filter := h.parseProductFilter(c)
+	filter.IncludeInactive = true
+
+	result, err := h.productService.List(c.Request.Context(), filter)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+
+	response.Paginated(c, result.Products, response.PaginationMeta{
+		Page:       result.Page,
+		Limit:      result.Limit,
+		Total:      result.Total,
+		TotalPages: result.TotalPages,
+	})
+}
+
+// AdminGetByID handles GET /api/v1/admin/products/:id
+func (h *ProductHandler) AdminGetByID(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Некорректный ID")
+		return
+	}
+
+	product, err := h.productService.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, domain.ErrProductNotFound) {
+			response.NotFound(c, "Товар не найден")
+			return
+		}
+		response.InternalError(c)
+		return
+	}
+
+	response.OK(c, product)
 }
 
 // Create handles POST /api/v1/admin/products

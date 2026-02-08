@@ -59,7 +59,8 @@ export const dataProvider: DataProvider = {
       }
     }
 
-    const { data: resp } = await api.get(`/${resource}`, { params });
+    // Admin endpoints for listing (includes inactive items)
+    const { data: resp } = await api.get(`/admin/${resource}`, { params });
     return {
       data: resp.data,
       total: resp.meta?.total ?? resp.data?.length ?? 0,
@@ -74,7 +75,8 @@ export const dataProvider: DataProvider = {
       return { data: found };
     }
 
-    const { data: resp } = await api.get(`/${resource}/${id}`);
+    // Admin endpoint for getting by ID
+    const { data: resp } = await api.get(`/admin/${resource}/${id}`);
     return { data: resp.data };
   },
 

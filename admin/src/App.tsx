@@ -10,6 +10,7 @@ import ruRU from "antd/locale/ru_RU";
 import {
   DashboardOutlined,
   FolderOutlined,
+  ShoppingOutlined,
 } from "@ant-design/icons";
 
 import { dataProvider } from "./providers/dataProvider";
@@ -17,6 +18,8 @@ import { authProvider } from "./providers/authProvider";
 import { LoginPage } from "./pages/login";
 import { DashboardPage } from "./pages/dashboard";
 import { CategoryList } from "./pages/categories/list";
+import { ProductList } from "./pages/products/list";
+import { ProductForm } from "./pages/products/form";
 
 import "@refinedev/antd/dist/reset.css";
 
@@ -40,6 +43,13 @@ const AdminApp = () => {
                 name: "categories",
                 list: "/categories",
                 meta: { label: "Категории", icon: <FolderOutlined /> },
+              },
+              {
+                name: "products",
+                list: "/products",
+                create: "/products/create",
+                edit: "/products/:id/edit",
+                meta: { label: "Товары", icon: <ShoppingOutlined /> },
               },
             ]}
             options={{
@@ -68,6 +78,9 @@ const AdminApp = () => {
               >
                 <Route index element={<DashboardPage />} />
                 <Route path="/categories" element={<CategoryList />} />
+                <Route path="/products" element={<ProductList />} />
+                <Route path="/products/create" element={<ProductForm />} />
+                <Route path="/products/:id/edit" element={<ProductForm />} />
               </Route>
 
               <Route
