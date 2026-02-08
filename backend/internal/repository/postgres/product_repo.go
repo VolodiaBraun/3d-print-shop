@@ -83,10 +83,14 @@ func (r *ProductRepo) List(ctx context.Context, filter domain.ProductFilter) (*d
 		query = query.Where("material IN ?", filter.Materials)
 	}
 
-	// Full-text search in name and description (Russian config)
+	// Full-text search with prefix matching (Russian config)
 	if filter.Search != "" {
 		words := strings.Fields(filter.Search)
-		tsQuery := strings.Join(words, " & ")
+		prefixed := make([]string, len(words))
+		for i, w := range words {
+			prefixed[i] = w + ":*"
+		}
+		tsQuery := strings.Join(prefixed, " & ")
 		query = query.Where("search_vector @@ to_tsquery('russian', ?)", tsQuery)
 	}
 
@@ -111,7 +115,11 @@ func (r *ProductRepo) List(ctx context.Context, filter domain.ProductFilter) (*d
 	default:
 		if filter.Search != "" {
 			words := strings.Fields(filter.Search)
-			tsQuery := strings.Join(words, " & ")
+			prefixed := make([]string, len(words))
+			for i, w := range words {
+				prefixed[i] = w + ":*"
+			}
+			tsQuery := strings.Join(prefixed, " & ")
 			query = query.Order(gorm.Expr("ts_rank(search_vector, to_tsquery('russian', ?)) DESC", tsQuery))
 		} else {
 			query = query.Order("created_at DESC")
