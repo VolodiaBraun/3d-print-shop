@@ -54,6 +54,17 @@ export interface Product {
   updatedAt: string;
 }
 
+export interface CartItem {
+  productId: number;
+  name: string;
+  slug: string;
+  price: number;
+  oldPrice?: number;
+  image?: string;
+  quantity: number;
+  stockQuantity: number;
+}
+
 export interface PaginationMeta {
   page: number;
   limit: number;

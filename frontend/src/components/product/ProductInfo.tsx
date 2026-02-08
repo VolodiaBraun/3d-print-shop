@@ -1,12 +1,14 @@
 "use client";
 
-import { Star, ShoppingCart } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Star, ShoppingCart, Check, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useCart } from "@/lib/cart-context";
 import type { Product } from "@/lib/types";
 
 function formatPrice(price: number): string {
-  return new Intl.NumberFormat("ru-RU").format(price) + " ₽";
+  return new Intl.NumberFormat("ru-RU").format(price) + " \u20BD";
 }
 
 function RatingStars({ rating }: { rating: number }) {
@@ -32,6 +34,9 @@ function RatingStars({ rating }: { rating: number }) {
 }
 
 export function ProductInfo({ product }: { product: Product }) {
+  const { addItem, getItemQuantity } = useCart();
+  const [justAdded, setJustAdded] = useState(false);
+
   const inStock = product.stockQuantity > 0;
   const hasDiscount = product.oldPrice && product.oldPrice > product.price;
   const discountPercent = hasDiscount
@@ -39,6 +44,20 @@ export function ProductInfo({ product }: { product: Product }) {
         ((product.oldPrice! - product.price) / product.oldPrice!) * 100
       )
     : 0;
+
+  const inCartQty = getItemQuantity(product.id);
+
+  useEffect(() => {
+    if (justAdded) {
+      const timer = setTimeout(() => setJustAdded(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [justAdded]);
+
+  const handleAddToCart = () => {
+    addItem(product);
+    setJustAdded(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -83,10 +102,42 @@ export function ProductInfo({ product }: { product: Product }) {
       {/* Add to cart / Out of stock */}
       <div className="pt-2">
         {inStock ? (
-          <Button size="lg" className="w-full sm:w-auto gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            В корзину
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            {justAdded ? (
+              <Button
+                size="lg"
+                className="w-full sm:w-auto gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <Check className="h-5 w-5" />
+                Добавлено
+              </Button>
+            ) : inCartQty > 0 ? (
+              <>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={handleAddToCart}
+                  disabled={inCartQty >= product.stockQuantity}
+                >
+                  <Plus className="h-5 w-5" />
+                  Ещё
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  В корзине: {inCartQty} шт.
+                </span>
+              </>
+            ) : (
+              <Button
+                size="lg"
+                className="w-full sm:w-auto gap-2"
+                onClick={handleAddToCart}
+              >
+                <ShoppingCart className="h-5 w-5" />
+                В корзину
+              </Button>
+            )}
+          </div>
         ) : (
           <Button
             size="lg"
