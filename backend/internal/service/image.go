@@ -14,6 +14,7 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	_ "golang.org/x/image/webp" // register WebP decoder for image.Decode
 
 	"github.com/brown/3d-print-shop/internal/domain"
 	"github.com/brown/3d-print-shop/internal/storage"
