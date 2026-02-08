@@ -168,7 +168,7 @@ func (r *ProductRepo) collectChildIDs(parentID int) []int {
 }
 
 func (r *ProductRepo) Update(ctx context.Context, product *domain.Product) error {
-	return r.db.WithContext(ctx).Save(product).Error
+	return r.db.WithContext(ctx).Omit("Category", "Images").Save(product).Error
 }
 
 func (r *ProductRepo) SoftDelete(ctx context.Context, id int) error {
