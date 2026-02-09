@@ -65,4 +65,49 @@ export async function validatePromoCode(
   return data.data;
 }
 
+export interface CreateOrderInput {
+  items: { productId: number; quantity: number }[];
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  deliveryMethod: string;
+  deliveryAddress?: string;
+  paymentMethod: string;
+  promoCode?: string;
+  notes?: string;
+}
+
+export interface OrderResponse {
+  id: number;
+  orderNumber: string;
+  status: string;
+  subtotal: number;
+  discountAmount: number;
+  deliveryCost: number;
+  totalPrice: number;
+  promoCode?: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  deliveryMethod: string;
+  paymentMethod: string;
+  items: {
+    productId: number;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+  }[];
+  createdAt: string;
+}
+
+export async function createOrder(
+  input: CreateOrderInput
+): Promise<OrderResponse> {
+  const { data } = await api.post<ApiResponse<OrderResponse>>(
+    "/orders",
+    input
+  );
+  return data.data;
+}
+
 export default api;
