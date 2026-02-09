@@ -166,12 +166,12 @@ export default function CheckoutPage() {
         <p className="mt-4 text-sm text-muted-foreground">
           Мы свяжемся с вами для подтверждения заказа
         </p>
-        <div className="mt-6 flex justify-center gap-4">
+        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <Button asChild>
-            <Link href="/">На главную</Link>
+            <Link href={`/order/${order.orderNumber}`}>Посмотреть заказ</Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/catalog">В каталог</Link>
+            <Link href="/catalog">Продолжить покупки</Link>
           </Button>
         </div>
       </div>

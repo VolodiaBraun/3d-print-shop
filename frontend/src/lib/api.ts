@@ -77,6 +77,22 @@ export interface CreateOrderInput {
   notes?: string;
 }
 
+export interface OrderItemProduct {
+  id: number;
+  name: string;
+  slug: string;
+  images?: { url: string; urlThumbnail?: string; isMain: boolean }[];
+}
+
+export interface OrderResponseItem {
+  id: number;
+  productId: number;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  product?: OrderItemProduct;
+}
+
 export interface OrderResponse {
   id: number;
   orderNumber: string;
@@ -90,14 +106,13 @@ export interface OrderResponse {
   customerPhone: string;
   customerEmail?: string;
   deliveryMethod: string;
+  deliveryAddress?: string;
   paymentMethod: string;
-  items: {
-    productId: number;
-    quantity: number;
-    unitPrice: number;
-    totalPrice: number;
-  }[];
+  isPaid: boolean;
+  notes?: string;
+  items: OrderResponseItem[];
   createdAt: string;
+  updatedAt: string;
 }
 
 export async function createOrder(
@@ -106,6 +121,15 @@ export async function createOrder(
   const { data } = await api.post<ApiResponse<OrderResponse>>(
     "/orders",
     input
+  );
+  return data.data;
+}
+
+export async function getOrder(
+  orderNumber: string
+): Promise<OrderResponse> {
+  const { data } = await api.get<ApiResponse<OrderResponse>>(
+    `/orders/${orderNumber}`
   );
   return data.data;
 }
