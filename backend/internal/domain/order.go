@@ -23,6 +23,7 @@ type Order struct {
 	CustomerName    string      `gorm:"not null" json:"customerName"`
 	CustomerPhone   string      `gorm:"not null" json:"customerPhone"`
 	CustomerEmail   *string     `json:"customerEmail,omitempty"`
+	TrackingNumber  *string     `json:"trackingNumber,omitempty"`
 	Notes           *string     `json:"notes,omitempty"`
 	Items           []OrderItem `gorm:"foreignKey:OrderID" json:"items"`
 	CreatedAt       time.Time   `json:"createdAt"`
@@ -40,15 +41,24 @@ type OrderItem struct {
 	CreatedAt  time.Time `json:"createdAt"`
 }
 
+type OrderFilter struct {
+	Status string
+	Page   int
+	Limit  int
+}
+
 var (
-	ErrOrderNotFound = errors.New("order not found")
+	ErrOrderNotFound       = errors.New("order not found")
+	ErrOrderStatusInvalid  = errors.New("invalid status transition")
 )
 
 type OrderRepository interface {
 	Create(ctx context.Context, order *Order) error
 	FindByID(ctx context.Context, id int) (*Order, error)
 	FindByOrderNumber(ctx context.Context, orderNumber string) (*Order, error)
+	List(ctx context.Context, filter OrderFilter) ([]Order, int64, error)
 	ListByUserID(ctx context.Context, userID int) ([]Order, error)
 	UpdateStatus(ctx context.Context, id int, status string) error
+	UpdateTracking(ctx context.Context, id int, trackingNumber string) error
 	NextOrderNumber(ctx context.Context) (string, error)
 }

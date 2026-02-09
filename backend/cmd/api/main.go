@@ -149,6 +149,7 @@ func main() {
 	productHandler.RegisterAdminRoutes(admin)
 	imageHandler.RegisterAdminRoutes(admin)
 	promoHandler.RegisterAdminRoutes(admin)
+	orderHandler.RegisterAdminRoutes(admin)
 
 	// Create HTTP server
 	srv := &http.Server{

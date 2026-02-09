@@ -203,6 +203,38 @@ func (s *OrderService) ListByUserID(ctx context.Context, userID int) ([]domain.O
 	return s.orderRepo.ListByUserID(ctx, userID)
 }
 
-func (s *OrderService) UpdateStatus(ctx context.Context, id int, status string) error {
-	return s.orderRepo.UpdateStatus(ctx, id, status)
+var validTransitions = map[string][]string{
+	"new":        {"confirmed", "cancelled"},
+	"confirmed":  {"processing", "cancelled"},
+	"processing": {"shipped"},
+	"shipped":    {"delivered"},
+}
+
+func (s *OrderService) UpdateStatus(ctx context.Context, id int, newStatus string) error {
+	order, err := s.orderRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	allowed := validTransitions[order.Status]
+	valid := false
+	for _, s := range allowed {
+		if s == newStatus {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return domain.ErrOrderStatusInvalid
+	}
+
+	return s.orderRepo.UpdateStatus(ctx, id, newStatus)
+}
+
+func (s *OrderService) ListOrders(ctx context.Context, filter domain.OrderFilter) ([]domain.Order, int64, error) {
+	return s.orderRepo.List(ctx, filter)
+}
+
+func (s *OrderService) UpdateTracking(ctx context.Context, id int, trackingNumber string) error {
+	return s.orderRepo.UpdateTracking(ctx, id, trackingNumber)
 }

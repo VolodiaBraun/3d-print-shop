@@ -50,6 +50,44 @@ func (r *OrderRepo) FindByOrderNumber(ctx context.Context, orderNumber string) (
 	return &order, err
 }
 
+func (r *OrderRepo) List(ctx context.Context, filter domain.OrderFilter) ([]domain.Order, int64, error) {
+	query := r.db.WithContext(ctx).Model(&domain.Order{})
+
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if filter.Page < 1 {
+		filter.Page = 1
+	}
+	if filter.Limit < 1 || filter.Limit > 100 {
+		filter.Limit = 20
+	}
+	offset := (filter.Page - 1) * filter.Limit
+
+	listQuery := r.db.WithContext(ctx).
+		Preload("Items").
+		Preload("Items.Product").
+		Preload("Items.Product.Images", "is_main = true")
+
+	if filter.Status != "" {
+		listQuery = listQuery.Where("status = ?", filter.Status)
+	}
+
+	var orders []domain.Order
+	err := listQuery.
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(filter.Limit).
+		Find(&orders).Error
+	return orders, total, err
+}
+
 func (r *OrderRepo) ListByUserID(ctx context.Context, userID int) ([]domain.Order, error) {
 	var orders []domain.Order
 	err := r.db.WithContext(ctx).
@@ -68,6 +106,23 @@ func (r *OrderRepo) UpdateStatus(ctx context.Context, id int, status string) err
 		Updates(map[string]interface{}{
 			"status":     status,
 			"updated_at": time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return domain.ErrOrderNotFound
+	}
+	return nil
+}
+
+func (r *OrderRepo) UpdateTracking(ctx context.Context, id int, trackingNumber string) error {
+	result := r.db.WithContext(ctx).
+		Model(&domain.Order{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"tracking_number": trackingNumber,
+			"updated_at":      time.Now(),
 		})
 	if result.Error != nil {
 		return result.Error

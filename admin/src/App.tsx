@@ -11,6 +11,7 @@ import {
   DashboardOutlined,
   FolderOutlined,
   ShoppingOutlined,
+  ShoppingCartOutlined,
 } from "@ant-design/icons";
 
 import { dataProvider } from "./providers/dataProvider";
@@ -20,6 +21,8 @@ import { DashboardPage } from "./pages/dashboard";
 import { CategoryList } from "./pages/categories/list";
 import { ProductList } from "./pages/products/list";
 import { ProductForm } from "./pages/products/form";
+import { OrderList } from "./pages/orders/list";
+import { OrderDetail } from "./pages/orders/detail";
 
 import "@refinedev/antd/dist/reset.css";
 
@@ -51,6 +54,12 @@ const AdminApp = () => {
                 edit: "/products/:id/edit",
                 meta: { label: "Товары", icon: <ShoppingOutlined /> },
               },
+              {
+                name: "orders",
+                list: "/orders",
+                show: "/orders/:id",
+                meta: { label: "Заказы", icon: <ShoppingCartOutlined /> },
+              },
             ]}
             options={{
               syncWithLocation: true,
@@ -81,6 +90,8 @@ const AdminApp = () => {
                 <Route path="/products" element={<ProductList />} />
                 <Route path="/products/create" element={<ProductForm />} />
                 <Route path="/products/:id/edit" element={<ProductForm />} />
+                <Route path="/orders" element={<OrderList />} />
+                <Route path="/orders/:id" element={<OrderDetail />} />
               </Route>
 
               <Route
