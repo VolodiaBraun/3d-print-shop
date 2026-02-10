@@ -20,6 +20,7 @@ type Bot struct {
 	orderService *service.OrderService
 	userRepo     domain.UserRepository
 	webAppURL    string
+	adminChatID  int64
 	log          *zap.Logger
 }
 
@@ -40,6 +41,7 @@ func New(
 		orderService: orderService,
 		userRepo:     userRepo,
 		webAppURL:    cfg.WebAppURL,
+		adminChatID:  cfg.AdminChatID,
 		log:          log.Named("telegram"),
 	}
 

@@ -228,11 +228,27 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		zap.Float64("total", order.TotalPrice),
 	)
 
-	// Send notification asynchronously
+	// Send notifications asynchronously
 	if s.notifier != nil {
 		go func() {
-			if err := s.notifier.NotifyOrderCreated(context.Background(), created); err != nil {
+			bgCtx := context.Background()
+			if err := s.notifier.NotifyOrderCreated(bgCtx, created); err != nil {
 				s.log.Warn("failed to send order created notification", zap.Error(err))
+			}
+			if err := s.notifier.NotifyAdminNewOrder(bgCtx, created); err != nil {
+				s.log.Warn("failed to send admin new order notification", zap.Error(err))
+			}
+			// Check low stock for each ordered product
+			for _, item := range input.Items {
+				p, pErr := s.productRepo.FindByID(bgCtx, item.ProductID)
+				if pErr != nil {
+					continue
+				}
+				if p.StockQuantity > 0 && p.StockQuantity < 5 {
+					if err := s.notifier.NotifyAdminLowStock(bgCtx, p); err != nil {
+						s.log.Warn("failed to send low stock notification", zap.Error(err))
+					}
+				}
 			}
 		}()
 	}

@@ -84,6 +84,49 @@ func (b *Bot) resolveUserChatID(ctx context.Context, order *domain.Order) (int64
 	return *user.TelegramID, nil
 }
 
+// NotifyAdminNewOrder sends a notification to admin about a new order.
+func (b *Bot) NotifyAdminNewOrder(ctx context.Context, order *domain.Order) error {
+	if b.adminChatID == 0 {
+		return nil
+	}
+
+	text := fmt.Sprintf(
+		"\U0001F6D2 <b>Новый заказ %s!</b>\n\nСумма: %s\nКлиент: %s\nТелефон: %s\nДоставка: %s",
+		order.OrderNumber,
+		formatPrice(order.TotalPrice),
+		order.CustomerName,
+		order.CustomerPhone,
+		deliveryMethodText(order.DeliveryMethod),
+	)
+	if order.DeliveryAddress != nil && *order.DeliveryAddress != "" {
+		text += fmt.Sprintf("\nАдрес: %s", *order.DeliveryAddress)
+	}
+	if len(order.Items) > 0 {
+		text += fmt.Sprintf("\nТоваров: %d шт", len(order.Items))
+	}
+
+	b.send(b.adminChatID, text)
+	b.log.Info("sent admin new order notification", zap.String("order", order.OrderNumber))
+	return nil
+}
+
+// NotifyAdminLowStock warns admin when product stock falls below threshold.
+func (b *Bot) NotifyAdminLowStock(ctx context.Context, product *domain.Product) error {
+	if b.adminChatID == 0 {
+		return nil
+	}
+
+	text := fmt.Sprintf(
+		"\u26A0\uFE0F <b>Заканчивается товар!</b>\n\n%s\nОсталось: <b>%d шт</b>",
+		product.Name,
+		product.StockQuantity,
+	)
+
+	b.send(b.adminChatID, text)
+	b.log.Info("sent admin low stock notification", zap.String("product", product.Name), zap.Int("stock", product.StockQuantity))
+	return nil
+}
+
 func deliveryMethodText(method string) string {
 	switch method {
 	case "pickup":
