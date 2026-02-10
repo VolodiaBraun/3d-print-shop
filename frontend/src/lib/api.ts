@@ -75,6 +75,7 @@ export interface CreateOrderInput {
   paymentMethod: string;
   promoCode?: string;
   notes?: string;
+  telegramId?: number;
 }
 
 export interface OrderItemProduct {

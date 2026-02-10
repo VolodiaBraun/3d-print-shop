@@ -86,7 +86,7 @@ func main() {
 	cartService := service.NewCartService(cartRepo, productRepo, log)
 	promoService := service.NewPromoService(promoRepo, log)
 	orderRepo := postgres.NewOrderRepo(db)
-	orderService := service.NewOrderService(orderRepo, productRepo, promoService, db, log)
+	orderService := service.NewOrderService(orderRepo, productRepo, userRepo, promoService, db, log)
 
 	// Telegram bot (optional)
 	var telegramBot *tgbot.Bot

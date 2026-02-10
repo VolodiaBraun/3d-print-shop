@@ -54,3 +54,11 @@ func (r *UserRepo) FindByTelegramID(ctx context.Context, telegramID int64) (*dom
 	}
 	return &user, nil
 }
+
+func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
+	return r.db.WithContext(ctx).Create(user).Error
+}
+
+func (r *UserRepo) Update(ctx context.Context, user *domain.User) error {
+	return r.db.WithContext(ctx).Save(user).Error
+}

@@ -32,18 +32,36 @@ function formatPrice(price: number): string {
 
 export default function CheckoutPage() {
   const { items, totalItems, totalPrice, clearCart, loaded } = useCart();
-  const { isTelegram, firstName, lastName } = useTelegram();
+  const { isTelegram, firstName, lastName, userId: telegramId } = useTelegram();
 
   // Contact form
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
-  // Pre-fill name from Telegram
+  // Pre-fill from Telegram
   useEffect(() => {
-    if (isTelegram && firstName && !name) {
+    if (!isTelegram) return;
+
+    if (firstName && !name) {
       const tgName = [firstName, lastName].filter(Boolean).join(" ");
       setName(tgName);
+    }
+
+    // Request phone number via Telegram
+    const tg = window.Telegram?.WebApp;
+    if (tg && !phone) {
+      try {
+        tg.requestContact?.((ok: boolean, response?: { responseUnsafe?: { contact?: { phone_number?: string } } }) => {
+          if (ok && response?.responseUnsafe?.contact?.phone_number) {
+            let num = response.responseUnsafe.contact.phone_number;
+            if (!num.startsWith("+")) num = "+" + num;
+            setPhone(num);
+          }
+        });
+      } catch {
+        // requestContact not supported in this TG version, ignore
+      }
     }
   }, [isTelegram, firstName, lastName]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -125,6 +143,7 @@ export default function CheckoutPage() {
         customerPhone: phone.trim(),
         customerEmail: email.trim() || undefined,
         deliveryMethod,
+        telegramId: telegramId || undefined,
         deliveryAddress:
           deliveryMethod === "courier" ? address.trim() : undefined,
         paymentMethod,

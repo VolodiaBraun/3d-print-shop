@@ -87,6 +87,7 @@ interface TelegramWebApp {
   onEvent(eventType: string, callback: () => void): void;
   offEvent(eventType: string, callback: () => void): void;
   sendData(data: string): void;
+  requestContact?(callback: (ok: boolean, response?: { responseUnsafe?: { contact?: { phone_number?: string; first_name?: string; last_name?: string; user_id?: number } } }) => void): void;
   openLink(url: string, options?: { try_instant_view?: boolean }): void;
   openTelegramLink(url: string): void;
   HapticFeedback: {

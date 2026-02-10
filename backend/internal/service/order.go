@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -21,6 +22,7 @@ type CreateOrderInput struct {
 	PaymentMethod   string           `json:"paymentMethod" binding:"required,oneof=card cash"`
 	PromoCode       *string          `json:"promoCode"`
 	Notes           *string          `json:"notes"`
+	TelegramID      *int64           `json:"telegramId"`
 }
 
 type OrderItemInput struct {
@@ -31,6 +33,7 @@ type OrderItemInput struct {
 type OrderService struct {
 	orderRepo    domain.OrderRepository
 	productRepo  domain.ProductRepository
+	userRepo     domain.UserRepository
 	promoService *PromoService
 	db           *gorm.DB
 	log          *zap.Logger
@@ -39,6 +42,7 @@ type OrderService struct {
 func NewOrderService(
 	orderRepo domain.OrderRepository,
 	productRepo domain.ProductRepository,
+	userRepo domain.UserRepository,
 	promoService *PromoService,
 	db *gorm.DB,
 	log *zap.Logger,
@@ -46,6 +50,7 @@ func NewOrderService(
 	return &OrderService{
 		orderRepo:    orderRepo,
 		productRepo:  productRepo,
+		userRepo:     userRepo,
 		promoService: promoService,
 		db:           db,
 		log:          log,
@@ -125,9 +130,38 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		return nil, fmt.Errorf("generate order number: %w", err)
 	}
 
-	// 5. Create order in transaction
+	// 5. Link Telegram user if telegramId is provided
+	var userID *int
+	if input.TelegramID != nil && *input.TelegramID != 0 {
+		user, err := s.userRepo.FindByTelegramID(ctx, *input.TelegramID)
+		if err != nil && errors.Is(err, domain.ErrUserNotFound) {
+			// Create new user from Telegram data
+			user = &domain.User{
+				TelegramID: input.TelegramID,
+				FirstName:  &input.CustomerName,
+				Phone:      &input.CustomerPhone,
+				Role:       "customer",
+				IsActive:   true,
+			}
+			if createErr := s.userRepo.Create(ctx, user); createErr != nil {
+				s.log.Warn("failed to create user from telegram", zap.Error(createErr))
+			} else {
+				userID = &user.ID
+			}
+		} else if err == nil {
+			userID = &user.ID
+			// Update phone if user didn't have one
+			if user.Phone == nil || *user.Phone == "" {
+				user.Phone = &input.CustomerPhone
+				_ = s.userRepo.Update(ctx, user)
+			}
+		}
+	}
+
+	// 6. Create order in transaction
 	order := &domain.Order{
 		OrderNumber:     orderNumber,
+		UserID:          userID,
 		Status:          "new",
 		Subtotal:        subtotal,
 		DiscountAmount:  discountAmount,
