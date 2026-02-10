@@ -12,6 +12,7 @@ import {
   FolderOutlined,
   ShoppingOutlined,
   ShoppingCartOutlined,
+  GiftOutlined,
 } from "@ant-design/icons";
 
 import { dataProvider } from "./providers/dataProvider";
@@ -23,6 +24,8 @@ import { ProductList } from "./pages/products/list";
 import { ProductForm } from "./pages/products/form";
 import { OrderList } from "./pages/orders/list";
 import { OrderDetail } from "./pages/orders/detail";
+import { PromoList } from "./pages/promos/list";
+import { PromoForm } from "./pages/promos/form";
 
 import "@refinedev/antd/dist/reset.css";
 
@@ -60,6 +63,13 @@ const AdminApp = () => {
                 show: "/orders/:id",
                 meta: { label: "Заказы", icon: <ShoppingCartOutlined /> },
               },
+              {
+                name: "promos",
+                list: "/promos",
+                create: "/promos/create",
+                edit: "/promos/:id/edit",
+                meta: { label: "Промокоды", icon: <GiftOutlined /> },
+              },
             ]}
             options={{
               syncWithLocation: true,
@@ -92,6 +102,9 @@ const AdminApp = () => {
                 <Route path="/products/:id/edit" element={<ProductForm />} />
                 <Route path="/orders" element={<OrderList />} />
                 <Route path="/orders/:id" element={<OrderDetail />} />
+                <Route path="/promos" element={<PromoList />} />
+                <Route path="/promos/create" element={<PromoForm />} />
+                <Route path="/promos/:id/edit" element={<PromoForm />} />
               </Route>
 
               <Route
