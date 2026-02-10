@@ -5,6 +5,7 @@ import { Star, ShoppingCart, Check, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/lib/cart-context";
+import { getTelegramWebApp } from "@/lib/telegram";
 import type { Product } from "@/lib/types";
 
 function formatPrice(price: number): string {
@@ -57,6 +58,10 @@ export function ProductInfo({ product }: { product: Product }) {
   const handleAddToCart = () => {
     addItem(product);
     setJustAdded(true);
+    const tg = getTelegramWebApp();
+    if (tg?.HapticFeedback) {
+      tg.HapticFeedback.notificationOccurred("success");
+    }
   };
 
   return (

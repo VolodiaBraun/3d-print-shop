@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { CartProvider } from "./cart-context";
+import { TelegramProvider } from "./telegram";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -18,8 +19,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <CartProvider>{children}</CartProvider>
-    </QueryClientProvider>
+    <TelegramProvider>
+      <QueryClientProvider client={queryClient}>
+        <CartProvider>{children}</CartProvider>
+      </QueryClientProvider>
+    </TelegramProvider>
   );
 }

@@ -134,3 +134,8 @@
     display: none;
   }
 }
+
+/* Telegram Web App safe areas */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}

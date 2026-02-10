@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCart } from "@/lib/cart-context";
+import { useTelegram } from "@/lib/telegram";
 import {
   createOrder,
   validatePromoCode,
@@ -31,11 +32,20 @@ function formatPrice(price: number): string {
 
 export default function CheckoutPage() {
   const { items, totalItems, totalPrice, clearCart, loaded } = useCart();
+  const { isTelegram, firstName, lastName } = useTelegram();
 
   // Contact form
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+
+  // Pre-fill name from Telegram
+  useEffect(() => {
+    if (isTelegram && firstName && !name) {
+      const tgName = [firstName, lastName].filter(Boolean).join(" ");
+      setName(tgName);
+    }
+  }, [isTelegram, firstName, lastName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Delivery
   const [deliveryMethod, setDeliveryMethod] = useState("pickup");
