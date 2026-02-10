@@ -20,6 +20,7 @@ import (
 	"github.com/brown/3d-print-shop/internal/repository/postgres"
 	"github.com/brown/3d-print-shop/internal/service"
 	"github.com/brown/3d-print-shop/internal/storage"
+	tgbot "github.com/brown/3d-print-shop/internal/telegram"
 	jwtpkg "github.com/brown/3d-print-shop/pkg/jwt"
 	"github.com/brown/3d-print-shop/pkg/logger"
 )
@@ -87,6 +88,17 @@ func main() {
 	orderRepo := postgres.NewOrderRepo(db)
 	orderService := service.NewOrderService(orderRepo, productRepo, promoService, db, log)
 
+	// Telegram bot (optional)
+	var telegramBot *tgbot.Bot
+	if cfg.Telegram.BotToken != "" {
+		telegramBot, err = tgbot.New(cfg.Telegram, orderService, userRepo, log)
+		if err != nil {
+			log.Warn("telegram bot failed to initialize", zap.Error(err))
+		} else {
+			log.Info("telegram bot initialized", zap.String("username", telegramBot.Username()))
+		}
+	}
+
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
@@ -151,6 +163,11 @@ func main() {
 	promoHandler.RegisterAdminRoutes(admin)
 	orderHandler.RegisterAdminRoutes(admin)
 
+	// Register Telegram webhook route
+	if telegramBot != nil {
+		telegramBot.RegisterWebhook(router)
+	}
+
 	// Create HTTP server
 	srv := &http.Server{
 		Addr:         ":" + cfg.Server.Port,
@@ -174,6 +191,10 @@ func main() {
 	<-quit
 
 	log.Info("shutting down server...")
+
+	if telegramBot != nil {
+		telegramBot.Stop()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

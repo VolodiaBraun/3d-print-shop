@@ -54,6 +54,7 @@ type JWTConfig struct {
 type TelegramConfig struct {
 	BotToken   string
 	WebhookURL string
+	WebAppURL  string
 }
 
 type CORSConfig struct {
@@ -101,6 +102,7 @@ func Load() (*Config, error) {
 		Telegram: TelegramConfig{
 			BotToken:   viper.GetString("TELEGRAM_BOT_TOKEN"),
 			WebhookURL: viper.GetString("TELEGRAM_WEBHOOK_URL"),
+			WebAppURL:  getStringOrDefault("TELEGRAM_WEBAPP_URL", "https://avangard-print.ru"),
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: getStringSlice("ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
