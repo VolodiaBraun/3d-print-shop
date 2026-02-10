@@ -67,7 +67,7 @@ func (b *Bot) handleStart(chatID int64) {
 }
 
 func (b *Bot) handleHelp(chatID int64) {
-	b.sendWithKeyboard(chatID, helpText, backToMenuButton())
+	b.sendWithKeyboard(chatID, helpText, backToMenuKeyboard())
 }
 
 func (b *Bot) handleOrders(chatID int64, telegramID int64) {
@@ -76,7 +76,7 @@ func (b *Bot) handleOrders(chatID int64, telegramID int64) {
 	user, err := b.userRepo.FindByTelegramID(ctx, telegramID)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
-			b.sendWithKeyboard(chatID, ordersNotLinkedText, backToMenuButton())
+			b.sendWithKeyboard(chatID, ordersNotLinkedText, backToMenuKeyboard())
 			return
 		}
 		b.log.Error("failed to find user by telegram id", zap.Error(err))
@@ -92,10 +92,10 @@ func (b *Bot) handleOrders(chatID int64, telegramID int64) {
 	}
 
 	if len(orders) == 0 {
-		b.sendWithKeyboard(chatID, noOrdersText, backToMenuButton())
+		b.sendWithKeyboard(chatID, noOrdersText, backToMenuKeyboard())
 		return
 	}
 
 	text := formatOrdersList(orders)
-	b.sendWithKeyboard(chatID, text, backToMenuButton())
+	b.sendWithKeyboard(chatID, text, backToMenuKeyboard())
 }

@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -61,6 +62,9 @@ func New(
 		log.Warn("failed to set bot commands", zap.Error(err))
 	}
 
+	// Set menu button to open Web App
+	bot.setMenuButton()
+
 	return bot, nil
 }
 
@@ -116,11 +120,17 @@ func (b *Bot) send(chatID int64, text string) {
 	}
 }
 
-func (b *Bot) sendWithKeyboard(chatID int64, text string, keyboard tgbotapi.InlineKeyboardMarkup) {
-	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = "HTML"
-	msg.ReplyMarkup = keyboard
-	if _, err := b.api.Send(msg); err != nil {
+func (b *Bot) sendWithKeyboard(chatID int64, text string, keyboard inlineKeyboard) {
+	// Use raw params to support web_app buttons not available in tgbotapi v5.5.1
+	replyMarkup, _ := json.Marshal(keyboard)
+
+	params := make(tgbotapi.Params)
+	params.AddNonZero64("chat_id", chatID)
+	params["text"] = text
+	params["parse_mode"] = "HTML"
+	params["reply_markup"] = string(replyMarkup)
+
+	if _, err := b.api.MakeRequest("sendMessage", params); err != nil {
 		b.log.Error("failed to send message", zap.Int64("chatID", chatID), zap.Error(err))
 	}
 }
