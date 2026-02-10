@@ -96,6 +96,7 @@ func main() {
 			log.Warn("telegram bot failed to initialize", zap.Error(err))
 		} else {
 			log.Info("telegram bot initialized", zap.String("username", telegramBot.Username()))
+			orderService.SetNotifier(telegramBot)
 		}
 	}
 

@@ -35,8 +35,14 @@ type OrderService struct {
 	productRepo  domain.ProductRepository
 	userRepo     domain.UserRepository
 	promoService *PromoService
+	notifier     domain.OrderNotifier
 	db           *gorm.DB
 	log          *zap.Logger
+}
+
+// SetNotifier sets the order notifier (used to break circular dependency).
+func (s *OrderService) SetNotifier(n domain.OrderNotifier) {
+	s.notifier = n
 }
 
 func NewOrderService(
@@ -222,6 +228,15 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		zap.Float64("total", order.TotalPrice),
 	)
 
+	// Send notification asynchronously
+	if s.notifier != nil {
+		go func() {
+			if err := s.notifier.NotifyOrderCreated(context.Background(), created); err != nil {
+				s.log.Warn("failed to send order created notification", zap.Error(err))
+			}
+		}()
+	}
+
 	return created, nil
 }
 
@@ -262,7 +277,25 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id int, newStatus strin
 		return domain.ErrOrderStatusInvalid
 	}
 
-	return s.orderRepo.UpdateStatus(ctx, id, newStatus)
+	if err := s.orderRepo.UpdateStatus(ctx, id, newStatus); err != nil {
+		return err
+	}
+
+	// Send notification asynchronously
+	if s.notifier != nil {
+		go func() {
+			updated, err := s.orderRepo.FindByID(context.Background(), id)
+			if err != nil {
+				s.log.Warn("failed to load order for notification", zap.Error(err))
+				return
+			}
+			if err := s.notifier.NotifyOrderStatusChanged(context.Background(), updated); err != nil {
+				s.log.Warn("failed to send status notification", zap.Error(err))
+			}
+		}()
+	}
+
+	return nil
 }
 
 func (s *OrderService) ListOrders(ctx context.Context, filter domain.OrderFilter) ([]domain.Order, int64, error) {
