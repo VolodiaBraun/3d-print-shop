@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/brown/3d-print-shop/internal/domain"
+	"github.com/brown/3d-print-shop/internal/middleware"
 	"github.com/brown/3d-print-shop/internal/service"
 	"github.com/brown/3d-print-shop/pkg/response"
 )
@@ -24,6 +25,10 @@ func (h *OrderHandler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 	orders := rg.Group("/orders")
 	orders.POST("", h.Create)
 	orders.GET("/:orderNumber", h.GetByOrderNumber)
+}
+
+func (h *OrderHandler) RegisterProtectedRoutes(rg *gin.RouterGroup) {
+	rg.GET("/orders/my", h.MyOrders)
 }
 
 func (h *OrderHandler) RegisterAdminRoutes(rg *gin.RouterGroup) {
@@ -66,6 +71,22 @@ func (h *OrderHandler) GetByOrderNumber(c *gin.Context) {
 	}
 
 	response.OK(c, order)
+}
+
+func (h *OrderHandler) MyOrders(c *gin.Context) {
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		response.Unauthorized(c, "Требуется авторизация")
+		return
+	}
+
+	orders, err := h.orderService.ListByUserID(c.Request.Context(), userID)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+
+	response.OK(c, orders)
 }
 
 func (h *OrderHandler) AdminList(c *gin.Context) {

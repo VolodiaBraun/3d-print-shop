@@ -147,7 +147,9 @@ func main() {
 	productHandler.RegisterPublicRoutes(v1)
 	promoHandler.RegisterPublicRoutes(v1)
 	orderHandler.RegisterPublicRoutes(v1)
-	cartHandler.RegisterRoutes(v1, middleware.AuthRequired(jwtManager))
+	authMw := middleware.AuthRequired(jwtManager)
+	orderHandler.RegisterProtectedRoutes(v1.Group("", authMw))
+	cartHandler.RegisterRoutes(v1, authMw)
 
 	// Protected admin routes
 	admin := v1.Group("/admin")

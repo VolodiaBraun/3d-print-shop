@@ -204,4 +204,9 @@ export async function getOrder(
   return data.data;
 }
 
+export async function getMyOrders(): Promise<OrderResponse[]> {
+  const { data } = await api.get<ApiResponse<OrderResponse[]>>("/orders/my");
+  return data.data;
+}
+
 export default api;
