@@ -26,6 +26,7 @@ func (h *AuthHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	auth := rg.Group("/auth")
 	auth.POST("/login", h.Login)
 	auth.POST("/refresh", h.Refresh)
+	auth.POST("/telegram", h.TelegramLogin)
 }
 
 // Login handles POST /api/v1/auth/login
@@ -52,6 +53,39 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	response.OK(c, tokens)
+}
+
+// telegramLoginInput represents the Telegram login request body.
+type telegramLoginInput struct {
+	InitData string `json:"initData" binding:"required"`
+}
+
+// TelegramLogin handles POST /api/v1/auth/telegram
+func (h *AuthHandler) TelegramLogin(c *gin.Context) {
+	var input telegramLoginInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ValidationError(c, []response.ErrorDetail{
+			{Message: "initData обязателен"},
+		})
+		return
+	}
+
+	resp, err := h.authService.LoginTelegram(c.Request.Context(), input.InitData)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidInitData):
+			response.Error(c, http.StatusUnauthorized, "INVALID_INIT_DATA", "Невалидные данные Telegram")
+		case errors.Is(err, service.ErrInitDataExpired):
+			response.Error(c, http.StatusUnauthorized, "INIT_DATA_EXPIRED", "Данные Telegram устарели")
+		case errors.Is(err, domain.ErrAccountDisabled):
+			response.Error(c, http.StatusForbidden, "ACCOUNT_DISABLED", "Аккаунт деактивирован")
+		default:
+			response.InternalError(c)
+		}
+		return
+	}
+
+	response.OK(c, resp)
 }
 
 // refreshInput represents the refresh token request body.

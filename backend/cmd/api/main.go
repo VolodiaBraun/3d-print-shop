@@ -79,7 +79,7 @@ func main() {
 	cacheStore := cache.NewStore(redisClient)
 
 	// Services
-	authService := service.NewAuthService(userRepo, authTokenService, log)
+	authService := service.NewAuthService(userRepo, authTokenService, cfg.Telegram.BotToken, log)
 	categoryService := service.NewCategoryService(categoryRepo, cacheStore, log)
 	productService := service.NewProductService(productRepo, categoryRepo, cacheStore, log)
 	imageService := service.NewImageService(productImageRepo, productRepo, s3Client, log)

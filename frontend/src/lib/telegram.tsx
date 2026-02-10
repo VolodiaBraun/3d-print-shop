@@ -112,3 +112,9 @@ export function getTelegramWebApp() {
   if (typeof window === "undefined") return null;
   return window.Telegram?.WebApp ?? null;
 }
+
+// Get raw initData string for authentication
+export function getInitData(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.Telegram?.WebApp?.initData || null;
+}

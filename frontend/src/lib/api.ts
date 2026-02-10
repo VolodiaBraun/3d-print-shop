@@ -11,6 +11,75 @@ const api = axios.create({
   timeout: 10000,
 });
 
+const AUTH_KEY = "avangard_auth";
+
+// Request interceptor: attach access token
+api.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(AUTH_KEY);
+      if (raw) {
+        const { accessToken } = JSON.parse(raw);
+        if (accessToken) {
+          config.headers.Authorization = `Bearer ${accessToken}`;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return config;
+});
+
+// Response interceptor: refresh token on 401
+let refreshPromise: Promise<string> | null = null;
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
+    if (
+      error.response?.status === 401 &&
+      !original._retry &&
+      !original.url?.includes("/auth/")
+    ) {
+      original._retry = true;
+
+      try {
+        if (!refreshPromise) {
+          refreshPromise = (async () => {
+            const raw = localStorage.getItem(AUTH_KEY);
+            if (!raw) throw new Error("no auth");
+            const stored = JSON.parse(raw);
+            if (!stored.refreshToken) throw new Error("no refresh token");
+
+            const { data } = await axios.post(
+              `${api.defaults.baseURL}/auth/refresh`,
+              { refreshToken: stored.refreshToken }
+            );
+            const newAccess = data.data.accessToken;
+            const newRefresh = data.data.refreshToken;
+            stored.accessToken = newAccess;
+            stored.refreshToken = newRefresh;
+            localStorage.setItem(AUTH_KEY, JSON.stringify(stored));
+            return newAccess;
+          })();
+        }
+
+        const newToken = await refreshPromise;
+        refreshPromise = null;
+        original.headers.Authorization = `Bearer ${newToken}`;
+        return api(original);
+      } catch {
+        refreshPromise = null;
+        localStorage.removeItem(AUTH_KEY);
+        return Promise.reject(error);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export async function getProducts(params?: {
   page?: number;
   limit?: number;
