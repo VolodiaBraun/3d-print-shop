@@ -55,6 +55,7 @@ export interface Product {
 }
 
 export interface CartItem {
+  id?: number; // server-side cart item ID
   productId: number;
   name: string;
   slug: string;

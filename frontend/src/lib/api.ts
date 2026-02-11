@@ -209,4 +209,59 @@ export async function getMyOrders(): Promise<OrderResponse[]> {
   return data.data;
 }
 
+// --- Server Cart API ---
+
+export interface ServerCartItem {
+  id: number;
+  productId: number;
+  quantity: number;
+  product: Product;
+}
+
+export interface ServerCart {
+  items: ServerCartItem[];
+  totalItems: number;
+  totalPrice: number;
+}
+
+export async function getServerCart(): Promise<ServerCart> {
+  const { data } = await api.get<ApiResponse<ServerCart>>("/cart");
+  return data.data;
+}
+
+export async function addServerCartItem(
+  productId: number,
+  quantity: number
+): Promise<ServerCart> {
+  const { data } = await api.post<ApiResponse<ServerCart>>("/cart/items", {
+    productId,
+    quantity,
+  });
+  return data.data;
+}
+
+export async function updateServerCartItem(
+  itemId: number,
+  quantity: number
+): Promise<ServerCart> {
+  const { data } = await api.put<ApiResponse<ServerCart>>(
+    `/cart/items/${itemId}`,
+    { quantity }
+  );
+  return data.data;
+}
+
+export async function removeServerCartItem(
+  itemId: number
+): Promise<ServerCart> {
+  const { data } = await api.delete<ApiResponse<ServerCart>>(
+    `/cart/items/${itemId}`
+  );
+  return data.data;
+}
+
+export async function clearServerCart(): Promise<void> {
+  await api.delete("/cart");
+}
+
 export default api;
