@@ -17,12 +17,14 @@ type CreateOrderInput struct {
 	CustomerName    string           `json:"customerName" binding:"required"`
 	CustomerPhone   string           `json:"customerPhone" binding:"required"`
 	CustomerEmail   *string          `json:"customerEmail"`
-	DeliveryMethod  string           `json:"deliveryMethod" binding:"required,oneof=pickup courier"`
+	DeliveryMethod  string           `json:"deliveryMethod" binding:"required,oneof=pickup courier pickup_point"`
 	DeliveryAddress *string          `json:"deliveryAddress"`
 	PaymentMethod   string           `json:"paymentMethod" binding:"required,oneof=card cash"`
 	PromoCode       *string          `json:"promoCode"`
 	Notes           *string          `json:"notes"`
 	TelegramID      *int64           `json:"telegramId"`
+	PickupPointID   *int             `json:"pickupPointId"`
+	City            *string          `json:"city"`
 }
 
 type OrderItemInput struct {
@@ -31,18 +33,24 @@ type OrderItemInput struct {
 }
 
 type OrderService struct {
-	orderRepo    domain.OrderRepository
-	productRepo  domain.ProductRepository
-	userRepo     domain.UserRepository
-	promoService *PromoService
-	notifier     domain.OrderNotifier
-	db           *gorm.DB
-	log          *zap.Logger
+	orderRepo       domain.OrderRepository
+	productRepo     domain.ProductRepository
+	userRepo        domain.UserRepository
+	promoService    *PromoService
+	deliveryService *DeliveryService
+	notifier        domain.OrderNotifier
+	db              *gorm.DB
+	log             *zap.Logger
 }
 
 // SetNotifier sets the order notifier (used to break circular dependency).
 func (s *OrderService) SetNotifier(n domain.OrderNotifier) {
 	s.notifier = n
+}
+
+// SetDeliveryService sets the delivery service for cost calculation.
+func (s *OrderService) SetDeliveryService(ds *DeliveryService) {
+	s.deliveryService = ds
 }
 
 func NewOrderService(
@@ -124,19 +132,33 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		promoCode = input.PromoCode
 	}
 
-	// 3. Calculate total
-	totalPrice := math.Round((subtotal-discountAmount)*100) / 100
+	// 3. Calculate delivery cost
+	var deliveryCost float64
+	var deliveryProvider *string
+	var estimatedDelivery *string
+	if input.DeliveryMethod == "courier" && input.City != nil && *input.City != "" && s.deliveryService != nil {
+		cost, estimated, err := s.deliveryService.CalculateCourierCost(ctx, *input.City, subtotal-discountAmount, 0)
+		if err == nil {
+			deliveryCost = cost
+			prov := s.deliveryService.provider.Name()
+			deliveryProvider = &prov
+			estimatedDelivery = &estimated
+		}
+	}
+
+	// 4. Calculate total
+	totalPrice := math.Round((subtotal-discountAmount+deliveryCost)*100) / 100
 	if totalPrice < 0 {
 		totalPrice = 0
 	}
 
-	// 4. Generate order number
+	// 5. Generate order number
 	orderNumber, err := s.orderRepo.NextOrderNumber(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("generate order number: %w", err)
 	}
 
-	// 5. Link Telegram user if telegramId is provided
+	// 6. Link Telegram user if telegramId is provided
 	var userID *int
 	if input.TelegramID != nil && *input.TelegramID != 0 {
 		user, err := s.userRepo.FindByTelegramID(ctx, *input.TelegramID)
@@ -164,23 +186,27 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		}
 	}
 
-	// 6. Create order in transaction
+	// 7. Create order in transaction
 	order := &domain.Order{
-		OrderNumber:     orderNumber,
-		UserID:          userID,
-		Status:          "new",
-		Subtotal:        subtotal,
-		DiscountAmount:  discountAmount,
-		TotalPrice:      totalPrice,
-		PromoCode:       promoCode,
-		DeliveryMethod:  input.DeliveryMethod,
-		DeliveryAddress: input.DeliveryAddress,
-		PaymentMethod:   input.PaymentMethod,
-		CustomerName:    input.CustomerName,
-		CustomerPhone:   input.CustomerPhone,
-		CustomerEmail:   input.CustomerEmail,
-		Notes:           input.Notes,
-		Items:           orderItems,
+		OrderNumber:       orderNumber,
+		UserID:            userID,
+		Status:            "new",
+		Subtotal:          subtotal,
+		DiscountAmount:    discountAmount,
+		DeliveryCost:      deliveryCost,
+		TotalPrice:        totalPrice,
+		PromoCode:         promoCode,
+		DeliveryMethod:    input.DeliveryMethod,
+		DeliveryAddress:   input.DeliveryAddress,
+		PaymentMethod:     input.PaymentMethod,
+		CustomerName:      input.CustomerName,
+		CustomerPhone:     input.CustomerPhone,
+		CustomerEmail:     input.CustomerEmail,
+		PickupPointID:     input.PickupPointID,
+		DeliveryProvider:  deliveryProvider,
+		EstimatedDelivery: estimatedDelivery,
+		Notes:             input.Notes,
+		Items:             orderItems,
 	}
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

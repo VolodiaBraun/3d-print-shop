@@ -145,6 +145,8 @@ export interface CreateOrderInput {
   promoCode?: string;
   notes?: string;
   telegramId?: number;
+  pickupPointId?: number;
+  city?: string;
 }
 
 export interface OrderItemProduct {
@@ -206,6 +208,58 @@ export async function getOrder(
 
 export async function getMyOrders(): Promise<OrderResponse[]> {
   const { data } = await api.get<ApiResponse<OrderResponse[]>>("/orders/my");
+  return data.data;
+}
+
+// --- Delivery API ---
+
+export interface DeliveryOption {
+  type: string;
+  name: string;
+  cost: number;
+  originalCost: number;
+  estimatedDaysMin: number;
+  estimatedDaysMax: number;
+  isFreeDelivery: boolean;
+  providerName: string;
+}
+
+export interface PickupPointData {
+  id: number;
+  name: string;
+  address: string;
+  city: string;
+  latitude?: number;
+  longitude?: number;
+  phone?: string;
+  workingHours: string;
+}
+
+export interface DeliveryCalculationResult {
+  courierOptions: DeliveryOption[];
+  pickupPoints: PickupPointData[];
+  hasPickupPoints: boolean;
+}
+
+export async function calculateDelivery(
+  city: string,
+  orderTotal: number,
+  totalWeight?: number
+): Promise<DeliveryCalculationResult> {
+  const { data } = await api.post<ApiResponse<DeliveryCalculationResult>>(
+    "/delivery/calculate",
+    { city, orderTotal, totalWeight }
+  );
+  return data.data;
+}
+
+export async function getPickupPoints(
+  city: string
+): Promise<PickupPointData[]> {
+  const { data } = await api.get<ApiResponse<PickupPointData[]>>(
+    "/delivery/pickup-points",
+    { params: { city } }
+  );
   return data.data;
 }
 

@@ -23,8 +23,12 @@ type Order struct {
 	CustomerName    string      `gorm:"not null" json:"customerName"`
 	CustomerPhone   string      `gorm:"not null" json:"customerPhone"`
 	CustomerEmail   *string     `json:"customerEmail,omitempty"`
-	TrackingNumber  *string     `json:"trackingNumber,omitempty"`
-	Notes           *string     `json:"notes,omitempty"`
+	TrackingNumber    *string      `json:"trackingNumber,omitempty"`
+	PickupPointID     *int         `json:"pickupPointId,omitempty"`
+	PickupPoint       *PickupPoint `gorm:"foreignKey:PickupPointID" json:"pickupPoint,omitempty"`
+	DeliveryProvider  *string      `json:"deliveryProvider,omitempty"`
+	EstimatedDelivery *string      `json:"estimatedDelivery,omitempty"`
+	Notes             *string      `json:"notes,omitempty"`
 	Items           []OrderItem `gorm:"foreignKey:OrderID" json:"items"`
 	CreatedAt       time.Time   `json:"createdAt"`
 	UpdatedAt       time.Time   `json:"updatedAt"`

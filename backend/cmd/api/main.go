@@ -15,6 +15,7 @@ import (
 
 	"github.com/brown/3d-print-shop/internal/cache"
 	"github.com/brown/3d-print-shop/internal/config"
+	mockdelivery "github.com/brown/3d-print-shop/internal/delivery/mock"
 	"github.com/brown/3d-print-shop/internal/handler"
 	"github.com/brown/3d-print-shop/internal/middleware"
 	"github.com/brown/3d-print-shop/internal/repository/postgres"
@@ -88,6 +89,13 @@ func main() {
 	orderRepo := postgres.NewOrderRepo(db)
 	orderService := service.NewOrderService(orderRepo, productRepo, userRepo, promoService, db, log)
 
+	// Delivery
+	deliveryZoneRepo := postgres.NewDeliveryZoneRepo(db)
+	pickupPointRepo := postgres.NewPickupPointRepo(db)
+	mockProvider := mockdelivery.New(deliveryZoneRepo)
+	deliveryService := service.NewDeliveryService(mockProvider, deliveryZoneRepo, pickupPointRepo, log)
+	orderService.SetDeliveryService(deliveryService)
+
 	// Telegram bot (optional)
 	var telegramBot *tgbot.Bot
 	if cfg.Telegram.BotToken != "" {
@@ -108,6 +116,7 @@ func main() {
 	cartHandler := handler.NewCartHandler(cartService)
 	promoHandler := handler.NewPromoHandler(promoService)
 	orderHandler := handler.NewOrderHandler(orderService)
+	deliveryHandler := handler.NewDeliveryHandler(deliveryService)
 
 	// Set Gin mode
 	if cfg.IsProduction() {
@@ -147,6 +156,7 @@ func main() {
 	productHandler.RegisterPublicRoutes(v1)
 	promoHandler.RegisterPublicRoutes(v1)
 	orderHandler.RegisterPublicRoutes(v1)
+	deliveryHandler.RegisterPublicRoutes(v1)
 	authMw := middleware.AuthRequired(jwtManager)
 	orderHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	cartHandler.RegisterRoutes(v1, authMw)
@@ -165,6 +175,7 @@ func main() {
 	imageHandler.RegisterAdminRoutes(admin)
 	promoHandler.RegisterAdminRoutes(admin)
 	orderHandler.RegisterAdminRoutes(admin)
+	deliveryHandler.RegisterAdminRoutes(admin)
 
 	// Register Telegram webhook route
 	if telegramBot != nil {
