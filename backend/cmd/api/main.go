@@ -53,7 +53,7 @@ func main() {
 	// Connect to S3
 	s3Client, err := storage.NewS3Client(cfg.S3, log)
 	if err != nil {
-		log.Fatal("failed to connect to s3", zap.Error(err))
+		log.Warn("failed to connect to s3, image uploads disabled", zap.Error(err))
 	}
 
 	// Repositories
