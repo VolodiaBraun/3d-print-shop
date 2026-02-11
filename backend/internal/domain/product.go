@@ -64,6 +64,7 @@ type Product struct {
 	ViewsCount       int         `gorm:"default:0" json:"viewsCount"`
 	SalesCount       int         `gorm:"default:0" json:"salesCount"`
 	Rating           float64     `gorm:"type:decimal(3,2);default:0" json:"rating"`
+	ReviewsCount     int         `gorm:"default:0" json:"reviewsCount"`
 	CreatedAt        time.Time   `json:"createdAt"`
 	UpdatedAt        time.Time   `json:"updatedAt"`
 }

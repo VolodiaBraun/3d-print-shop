@@ -9,13 +9,14 @@ var (
 	ErrUserNotFound       = errors.New("user not found")
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrAccountDisabled    = errors.New("account disabled")
+	ErrEmailAlreadyExists = errors.New("email already exists")
 )
 
 // User represents a user in the system.
 type User struct {
 	ID           int       `gorm:"primaryKey" json:"id"`
 	Email        *string   `gorm:"uniqueIndex:idx_users_email,where:email IS NOT NULL" json:"email,omitempty"`
-	PasswordHash string    `gorm:"->" json:"-"`
+	PasswordHash string    `gorm:"column:password_hash" json:"-"`
 	TelegramID   *int64    `gorm:"uniqueIndex" json:"telegramId,omitempty"`
 	Phone        *string   `json:"phone,omitempty"`
 	FirstName    *string   `json:"firstName,omitempty"`

@@ -108,8 +108,14 @@ func main() {
 		}
 	}
 
+	// User and Review services
+	userService := service.NewUserService(userRepo, log)
+	reviewRepo := postgres.NewReviewRepo(db)
+	reviewService := service.NewReviewService(reviewRepo, orderRepo, productRepo, db, log)
+
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
+	userHandler := handler.NewUserHandler(userService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	productHandler := handler.NewProductHandler(productService)
 	imageHandler := handler.NewImageHandler(imageService)
@@ -117,6 +123,7 @@ func main() {
 	promoHandler := handler.NewPromoHandler(promoService)
 	orderHandler := handler.NewOrderHandler(orderService)
 	deliveryHandler := handler.NewDeliveryHandler(deliveryService)
+	reviewHandler := handler.NewReviewHandler(reviewService)
 
 	// Set Gin mode
 	if cfg.IsProduction() {
@@ -157,7 +164,10 @@ func main() {
 	promoHandler.RegisterPublicRoutes(v1)
 	orderHandler.RegisterPublicRoutes(v1)
 	deliveryHandler.RegisterPublicRoutes(v1)
+	reviewHandler.RegisterPublicRoutes(v1)
 	authMw := middleware.AuthRequired(jwtManager)
+	userHandler.RegisterProtectedRoutes(v1.Group("", authMw))
+	reviewHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	orderHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	cartHandler.RegisterRoutes(v1, authMw)
 
@@ -176,6 +186,7 @@ func main() {
 	promoHandler.RegisterAdminRoutes(admin)
 	orderHandler.RegisterAdminRoutes(admin)
 	deliveryHandler.RegisterAdminRoutes(admin)
+	reviewHandler.RegisterAdminRoutes(admin)
 
 	// Register Telegram webhook route
 	if telegramBot != nil {

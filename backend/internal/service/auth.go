@@ -186,44 +186,10 @@ func (s *AuthService) LoginTelegram(ctx context.Context, initData string) (*Tele
 		return nil, ErrInvalidInitData
 	}
 
-	// Find or create user
-	user, err := s.userRepo.FindByTelegramID(ctx, tgUser.ID)
-	if errors.Is(err, domain.ErrUserNotFound) {
-		firstName := tgUser.FirstName
-		lastName := tgUser.LastName
-		username := tgUser.Username
-		user = &domain.User{
-			TelegramID: &tgUser.ID,
-			FirstName:  &firstName,
-			LastName:   &lastName,
-			Username:   &username,
-			Role:       "customer",
-			IsActive:   true,
-		}
-		if err := s.userRepo.Create(ctx, user); err != nil {
-			return nil, fmt.Errorf("create telegram user: %w", err)
-		}
-		s.log.Info("created user from telegram", zap.Int("userID", user.ID), zap.Int64("telegramID", tgUser.ID))
-	} else if err != nil {
-		return nil, fmt.Errorf("find user by telegram id: %w", err)
-	} else {
-		// Update user info if changed
-		changed := false
-		if user.FirstName == nil || *user.FirstName != tgUser.FirstName {
-			user.FirstName = &tgUser.FirstName
-			changed = true
-		}
-		if user.LastName == nil || *user.LastName != tgUser.LastName {
-			user.LastName = &tgUser.LastName
-			changed = true
-		}
-		if tgUser.Username != "" && (user.Username == nil || *user.Username != tgUser.Username) {
-			user.Username = &tgUser.Username
-			changed = true
-		}
-		if changed {
-			_ = s.userRepo.Update(ctx, user)
-		}
+	// Find or create/link user
+	user, err := s.findOrLinkTelegramUser(ctx, tgUser.ID, "", tgUser.FirstName, tgUser.LastName, tgUser.Username)
+	if err != nil {
+		return nil, err
 	}
 
 	if !user.IsActive {
@@ -250,6 +216,255 @@ func (s *AuthService) LoginTelegram(ctx context.Context, initData string) (*Tele
 	resp.User.Role = user.Role
 
 	return resp, nil
+}
+
+// RegisterInput represents the registration request data.
+type RegisterInput struct {
+	Name     string `json:"name" binding:"required,min=2"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=8"`
+}
+
+// RegisterResponse is returned after successful registration.
+type RegisterResponse struct {
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+	User         struct {
+		ID        int    `json:"id"`
+		Email     string `json:"email"`
+		FirstName string `json:"firstName"`
+		Role      string `json:"role"`
+	} `json:"user"`
+}
+
+// Register creates a new user account or links to existing TG account.
+func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*RegisterResponse, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	// Check if email already exists
+	existing, err := s.userRepo.FindByEmail(ctx, input.Email)
+	if err != nil && !errors.Is(err, domain.ErrUserNotFound) {
+		return nil, fmt.Errorf("find user: %w", err)
+	}
+
+	var user *domain.User
+	if existing != nil {
+		// Email exists — check if it's a TG-only account (no password)
+		if existing.PasswordHash != "" {
+			return nil, domain.ErrEmailAlreadyExists
+		}
+		// Link: add password to existing TG account
+		existing.PasswordHash = string(hash)
+		existing.FirstName = &input.Name
+		if err := s.userRepo.Update(ctx, existing); err != nil {
+			return nil, fmt.Errorf("link account: %w", err)
+		}
+		user = existing
+		s.log.Info("linked email registration to existing TG account",
+			zap.Int("userID", user.ID), zap.String("email", input.Email))
+	} else {
+		// Create new user
+		user = &domain.User{
+			Email:        &input.Email,
+			PasswordHash: string(hash),
+			FirstName:    &input.Name,
+			Role:         "customer",
+			IsActive:     true,
+		}
+		if err := s.userRepo.Create(ctx, user); err != nil {
+			return nil, fmt.Errorf("create user: %w", err)
+		}
+		s.log.Info("user registered", zap.Int("userID", user.ID), zap.String("email", input.Email))
+	}
+
+	pair, err := s.tokens.GenerateTokenPair(ctx, user.ID, user.Role)
+	if err != nil {
+		return nil, fmt.Errorf("generate tokens: %w", err)
+	}
+
+	resp := &RegisterResponse{
+		AccessToken:  pair.AccessToken,
+		RefreshToken: pair.RefreshToken,
+	}
+	resp.User.ID = user.ID
+	resp.User.Email = input.Email
+	resp.User.FirstName = input.Name
+	resp.User.Role = user.Role
+	return resp, nil
+}
+
+// TelegramWidgetInput represents the Telegram Login Widget callback data.
+type TelegramWidgetInput struct {
+	ID        int64  `json:"id" binding:"required"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	Username  string `json:"username"`
+	PhotoURL  string `json:"photoUrl"`
+	AuthDate  int64  `json:"authDate" binding:"required"`
+	Hash      string `json:"hash" binding:"required"`
+	Email     string `json:"email"`
+}
+
+// LoginTelegramWidget validates Telegram Login Widget data and returns tokens.
+func (s *AuthService) LoginTelegramWidget(ctx context.Context, input TelegramWidgetInput) (*TelegramLoginResponse, error) {
+	if s.botToken == "" {
+		return nil, fmt.Errorf("telegram bot token not configured")
+	}
+
+	// Build data_check_string: sort all non-empty fields except hash
+	var pairs []string
+	if input.AuthDate != 0 {
+		pairs = append(pairs, fmt.Sprintf("auth_date=%d", input.AuthDate))
+	}
+	if input.Email != "" {
+		pairs = append(pairs, "email="+input.Email)
+	}
+	if input.FirstName != "" {
+		pairs = append(pairs, "first_name="+input.FirstName)
+	}
+	if input.ID != 0 {
+		pairs = append(pairs, fmt.Sprintf("id=%d", input.ID))
+	}
+	if input.LastName != "" {
+		pairs = append(pairs, "last_name="+input.LastName)
+	}
+	if input.PhotoURL != "" {
+		pairs = append(pairs, "photo_url="+input.PhotoURL)
+	}
+	if input.Username != "" {
+		pairs = append(pairs, "username="+input.Username)
+	}
+	sort.Strings(pairs)
+	dataCheckString := strings.Join(pairs, "\n")
+
+	// Telegram Login Widget uses SHA256(bot_token) as secret key (different from WebApp)
+	secretKey := sha256Sum([]byte(s.botToken))
+	computedHash := hex.EncodeToString(hmacSHA256(secretKey, []byte(dataCheckString)))
+
+	if !hmac.Equal([]byte(computedHash), []byte(input.Hash)) {
+		s.log.Warn("telegram widget hash mismatch")
+		return nil, ErrInvalidInitData
+	}
+
+	// Check auth_date (not older than 5 minutes)
+	if time.Now().Unix()-input.AuthDate > 300 {
+		return nil, ErrInitDataExpired
+	}
+
+	// Find or link user
+	user, err := s.findOrLinkTelegramUser(ctx, input.ID, input.Email, input.FirstName, input.LastName, input.Username)
+	if err != nil {
+		return nil, err
+	}
+
+	if !user.IsActive {
+		return nil, domain.ErrAccountDisabled
+	}
+
+	pair, err := s.tokens.GenerateTokenPair(ctx, user.ID, user.Role)
+	if err != nil {
+		return nil, fmt.Errorf("generate tokens: %w", err)
+	}
+
+	s.log.Info("telegram widget user logged in", zap.Int("userID", user.ID), zap.Int64("telegramID", input.ID))
+
+	resp := &TelegramLoginResponse{
+		AccessToken:  pair.AccessToken,
+		RefreshToken: pair.RefreshToken,
+	}
+	resp.User.ID = user.ID
+	if user.FirstName != nil {
+		resp.User.FirstName = *user.FirstName
+	}
+	resp.User.TelegramID = input.ID
+	resp.User.Role = user.Role
+	return resp, nil
+}
+
+// findOrLinkTelegramUser finds existing user by telegram_id or email, or creates new.
+func (s *AuthService) findOrLinkTelegramUser(ctx context.Context, telegramID int64, email, firstName, lastName, username string) (*domain.User, error) {
+	// 1. Try find by telegram_id
+	user, err := s.userRepo.FindByTelegramID(ctx, telegramID)
+	if err == nil {
+		// Found by TG ID — update info
+		changed := false
+		if firstName != "" && (user.FirstName == nil || *user.FirstName != firstName) {
+			user.FirstName = &firstName
+			changed = true
+		}
+		if lastName != "" && (user.LastName == nil || *user.LastName != lastName) {
+			user.LastName = &lastName
+			changed = true
+		}
+		if username != "" && (user.Username == nil || *user.Username != username) {
+			user.Username = &username
+			changed = true
+		}
+		if email != "" && user.Email == nil {
+			user.Email = &email
+			changed = true
+		}
+		if changed {
+			_ = s.userRepo.Update(ctx, user)
+		}
+		return user, nil
+	}
+	if !errors.Is(err, domain.ErrUserNotFound) {
+		return nil, fmt.Errorf("find by telegram id: %w", err)
+	}
+
+	// 2. Try find by email (link TG to existing email account)
+	if email != "" {
+		user, err = s.userRepo.FindByEmail(ctx, email)
+		if err == nil {
+			// Found by email — link telegram_id
+			user.TelegramID = &telegramID
+			if firstName != "" && user.FirstName == nil {
+				user.FirstName = &firstName
+			}
+			if lastName != "" && user.LastName == nil {
+				user.LastName = &lastName
+			}
+			if username != "" && user.Username == nil {
+				user.Username = &username
+			}
+			if err := s.userRepo.Update(ctx, user); err != nil {
+				return nil, fmt.Errorf("link telegram to email account: %w", err)
+			}
+			s.log.Info("linked telegram to existing email account",
+				zap.Int("userID", user.ID), zap.Int64("telegramID", telegramID), zap.String("email", email))
+			return user, nil
+		}
+		if !errors.Is(err, domain.ErrUserNotFound) {
+			return nil, fmt.Errorf("find by email: %w", err)
+		}
+	}
+
+	// 3. Create new user
+	user = &domain.User{
+		TelegramID: &telegramID,
+		FirstName:  &firstName,
+		LastName:   &lastName,
+		Username:   &username,
+		Role:       "customer",
+		IsActive:   true,
+	}
+	if email != "" {
+		user.Email = &email
+	}
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, fmt.Errorf("create telegram user: %w", err)
+	}
+	s.log.Info("created user from telegram", zap.Int("userID", user.ID), zap.Int64("telegramID", telegramID))
+	return user, nil
+}
+
+func sha256Sum(data []byte) []byte {
+	h := sha256.Sum256(data)
+	return h[:]
 }
 
 func hmacSHA256(key, data []byte) []byte {

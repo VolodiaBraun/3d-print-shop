@@ -10,10 +10,11 @@ import {
 } from "react";
 import api from "./api";
 
-interface AuthUser {
+export interface AuthUser {
   id: number;
   firstName: string;
-  telegramId: number;
+  email?: string;
+  telegramId?: number;
   role: string;
 }
 
@@ -27,7 +28,20 @@ interface AuthState {
 
 interface AuthContextType extends AuthState {
   loginWithTelegram: (initData: string) => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  loginWithTelegramWidget: (data: TelegramWidgetData) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+}
+
+export interface TelegramWidgetData {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+  auth_date: number;
+  hash: string;
 }
 
 const AUTH_KEY = "avangard_auth";
@@ -39,6 +53,9 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   isLoading: true,
   loginWithTelegram: async () => {},
+  loginWithEmail: async () => {},
+  loginWithTelegramWidget: async () => {},
+  register: async () => {},
   logout: () => {},
 });
 
@@ -89,25 +106,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const loginWithTelegram = useCallback(async (initData: string) => {
-    const { data } = await api.post<{
-      data: {
-        accessToken: string;
-        refreshToken: string;
-        user: AuthUser;
-      };
-    }>("/auth/telegram", { initData });
+  const setAuthFromResponse = useCallback(
+    (data: { accessToken: string; refreshToken: string; user: AuthUser }) => {
+      saveAuth(data.accessToken, data.refreshToken, data.user);
+      setState({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    },
+    []
+  );
 
-    const { accessToken, refreshToken, user } = data.data;
-    saveAuth(accessToken, refreshToken, user);
-    setState({
-      accessToken,
-      refreshToken,
-      user,
-      isAuthenticated: true,
-      isLoading: false,
-    });
-  }, []);
+  const loginWithTelegram = useCallback(
+    async (initData: string) => {
+      const { data } = await api.post<{
+        data: { accessToken: string; refreshToken: string; user: AuthUser };
+      }>("/auth/telegram", { initData });
+      setAuthFromResponse(data.data);
+    },
+    [setAuthFromResponse]
+  );
+
+  const loginWithEmail = useCallback(
+    async (email: string, password: string) => {
+      const { data } = await api.post<{
+        data: { accessToken: string; refreshToken: string };
+      }>("/auth/login", { email, password });
+      // Login doesn't return user, fetch profile
+      saveAuth(data.data.accessToken, data.data.refreshToken, { id: 0, firstName: "", role: "customer" });
+      const profileResp = await api.get<{ data: AuthUser }>("/users/me", {
+        headers: { Authorization: `Bearer ${data.data.accessToken}` },
+      });
+      const user: AuthUser = {
+        id: profileResp.data.data.id,
+        firstName: profileResp.data.data.firstName || "",
+        email: profileResp.data.data.email,
+        role: profileResp.data.data.role,
+      };
+      setAuthFromResponse({ ...data.data, user });
+    },
+    [setAuthFromResponse]
+  );
+
+  const register = useCallback(
+    async (name: string, email: string, password: string) => {
+      const { data } = await api.post<{
+        data: { accessToken: string; refreshToken: string; user: AuthUser };
+      }>("/auth/register", { name, email, password });
+      setAuthFromResponse(data.data);
+    },
+    [setAuthFromResponse]
+  );
+
+  const loginWithTelegramWidget = useCallback(
+    async (widgetData: TelegramWidgetData) => {
+      const { data } = await api.post<{
+        data: { accessToken: string; refreshToken: string; user: AuthUser };
+      }>("/auth/telegram-widget", {
+        id: widgetData.id,
+        firstName: widgetData.first_name || "",
+        lastName: widgetData.last_name || "",
+        username: widgetData.username || "",
+        photoUrl: widgetData.photo_url || "",
+        authDate: widgetData.auth_date,
+        hash: widgetData.hash,
+      });
+      setAuthFromResponse(data.data);
+    },
+    [setAuthFromResponse]
+  );
 
   // Auto-login when inside Telegram
   useEffect(() => {
@@ -132,7 +202,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loginWithTelegram]);
 
   return (
-    <AuthContext.Provider value={{ ...state, loginWithTelegram, logout }}>
+    <AuthContext.Provider
+      value={{
+        ...state,
+        loginWithTelegram,
+        loginWithEmail,
+        loginWithTelegramWidget,
+        register,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

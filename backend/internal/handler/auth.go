@@ -25,8 +25,10 @@ func NewAuthHandler(authService *service.AuthService) *AuthHandler {
 func (h *AuthHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	auth := rg.Group("/auth")
 	auth.POST("/login", h.Login)
+	auth.POST("/register", h.Register)
 	auth.POST("/refresh", h.Refresh)
 	auth.POST("/telegram", h.TelegramLogin)
+	auth.POST("/telegram-widget", h.TelegramWidgetLogin)
 }
 
 // Login handles POST /api/v1/auth/login
@@ -53,6 +55,58 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	response.OK(c, tokens)
+}
+
+// Register handles POST /api/v1/auth/register
+func (h *AuthHandler) Register(c *gin.Context) {
+	var input service.RegisterInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ValidationError(c, []response.ErrorDetail{
+			{Message: "Имя, email и пароль (мин. 8 символов) обязательны"},
+		})
+		return
+	}
+
+	resp, err := h.authService.Register(c.Request.Context(), input)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrEmailAlreadyExists):
+			response.Error(c, http.StatusConflict, "EMAIL_EXISTS", "Этот email уже используется")
+		default:
+			response.InternalError(c)
+		}
+		return
+	}
+
+	response.Created(c, resp)
+}
+
+// TelegramWidgetLogin handles POST /api/v1/auth/telegram-widget
+func (h *AuthHandler) TelegramWidgetLogin(c *gin.Context) {
+	var input service.TelegramWidgetInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.ValidationError(c, []response.ErrorDetail{
+			{Message: "Данные Telegram Login Widget обязательны"},
+		})
+		return
+	}
+
+	resp, err := h.authService.LoginTelegramWidget(c.Request.Context(), input)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidInitData):
+			response.Error(c, http.StatusUnauthorized, "INVALID_WIDGET_DATA", "Невалидные данные Telegram")
+		case errors.Is(err, service.ErrInitDataExpired):
+			response.Error(c, http.StatusUnauthorized, "WIDGET_DATA_EXPIRED", "Данные Telegram устарели")
+		case errors.Is(err, domain.ErrAccountDisabled):
+			response.Error(c, http.StatusForbidden, "ACCOUNT_DISABLED", "Аккаунт деактивирован")
+		default:
+			response.InternalError(c)
+		}
+		return
+	}
+
+	response.OK(c, resp)
 }
 
 // telegramLoginInput represents the Telegram login request body.

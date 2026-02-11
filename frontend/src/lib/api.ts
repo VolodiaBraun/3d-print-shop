@@ -318,4 +318,76 @@ export async function clearServerCart(): Promise<void> {
   await api.delete("/cart");
 }
 
+// --- Profile API ---
+
+export interface ProfileData {
+  id: number;
+  email?: string;
+  phone?: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  telegramId?: number;
+  role: string;
+  createdAt: string;
+}
+
+export async function getProfile(): Promise<ProfileData> {
+  const { data } = await api.get<ApiResponse<ProfileData>>("/users/me");
+  return data.data;
+}
+
+export async function updateProfile(
+  input: Partial<Pick<ProfileData, "firstName" | "lastName" | "phone" | "email">>
+): Promise<ProfileData> {
+  const { data } = await api.put<ApiResponse<ProfileData>>("/users/me", input);
+  return data.data;
+}
+
+// --- Reviews API ---
+
+export interface ReviewData {
+  id: number;
+  userId?: number;
+  productId: number;
+  orderId: number;
+  rating: number;
+  comment?: string;
+  status: string;
+  user?: { id: number; firstName?: string; lastName?: string };
+  product?: { id: number; name: string; slug: string };
+  createdAt: string;
+}
+
+export async function getProductReviews(
+  productId: number
+): Promise<ReviewData[]> {
+  const { data } = await api.get<ApiResponse<ReviewData[]>>(
+    `/products/${productId}/reviews`
+  );
+  return data.data;
+}
+
+export interface CreateReviewInput {
+  orderId: number;
+  rating: number;
+  comment?: string;
+}
+
+export async function createReview(
+  productId: number,
+  input: CreateReviewInput
+): Promise<ReviewData> {
+  const { data } = await api.post<ApiResponse<ReviewData>>(
+    `/products/${productId}/reviews`,
+    input
+  );
+  return data.data;
+}
+
+export async function getMyReviews(): Promise<ReviewData[]> {
+  const { data } = await api.get<ApiResponse<ReviewData[]>>("/reviews/my");
+  return data.data;
+}
+
 export default api;

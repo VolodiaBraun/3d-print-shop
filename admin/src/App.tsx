@@ -13,6 +13,7 @@ import {
   ShoppingOutlined,
   ShoppingCartOutlined,
   GiftOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
 
 import { dataProvider } from "./providers/dataProvider";
@@ -26,6 +27,7 @@ import { OrderList } from "./pages/orders/list";
 import { OrderDetail } from "./pages/orders/detail";
 import { PromoList } from "./pages/promos/list";
 import { PromoForm } from "./pages/promos/form";
+import { ReviewList } from "./pages/reviews/list";
 
 import "@refinedev/antd/dist/reset.css";
 
@@ -70,6 +72,11 @@ const AdminApp = () => {
                 edit: "/promos/:id/edit",
                 meta: { label: "Промокоды", icon: <GiftOutlined /> },
               },
+              {
+                name: "reviews",
+                list: "/reviews",
+                meta: { label: "Отзывы", icon: <MessageOutlined /> },
+              },
             ]}
             options={{
               syncWithLocation: true,
@@ -105,6 +112,7 @@ const AdminApp = () => {
                 <Route path="/promos" element={<PromoList />} />
                 <Route path="/promos/create" element={<PromoForm />} />
                 <Route path="/promos/:id/edit" element={<PromoForm />} />
+                <Route path="/reviews" element={<ReviewList />} />
               </Route>
 
               <Route

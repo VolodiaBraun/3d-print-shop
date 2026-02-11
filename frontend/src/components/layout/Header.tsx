@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Search, Menu, X } from "lucide-react";
+import { ShoppingCart, Search, Menu, X, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-context";
+import { useAuth } from "@/lib/auth-context";
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { totalItems, loaded } = useCart();
+  const { isAuthenticated, user, logout } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -58,6 +60,35 @@ export function Header() {
               )}
             </Link>
           </Button>
+
+          {/* Auth */}
+          {isAuthenticated ? (
+            <div className="hidden items-center gap-1 md:flex">
+              <Button variant="ghost" size="icon" asChild aria-label="Профиль">
+                <Link href="/profile">
+                  <User className="h-5 w-5" />
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Выйти"
+                onClick={logout}
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="hidden md:inline-flex"
+            >
+              <Link href="/login">Войти</Link>
+            </Button>
+          )}
+
           <Button
             variant="ghost"
             size="icon"
@@ -99,6 +130,42 @@ export function Header() {
             >
               Популярное
             </Link>
+            <hr className="border-border" />
+            {isAuthenticated ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="text-sm font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Профиль ({user?.firstName || user?.email || "Аккаунт"})
+                </Link>
+                <Link
+                  href="/orders"
+                  className="text-sm font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Мои заказы
+                </Link>
+                <button
+                  className="text-sm font-medium text-left text-muted-foreground"
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  Выйти
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                className="text-sm font-medium"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Войти / Регистрация
+              </Link>
+            )}
           </div>
         </nav>
       )}
