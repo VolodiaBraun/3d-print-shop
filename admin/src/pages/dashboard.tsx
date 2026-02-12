@@ -308,7 +308,8 @@ export const DashboardPage = () => {
                     year: "numeric",
                   });
                 }}
-                formatter={(value: number, name: string) => {
+                formatter={(value: number | undefined, name: string) => {
+                  if (value == null) return [0, name];
                   if (name === "Выручка") return [formatPrice(value), name];
                   return [value, name];
                 }}
