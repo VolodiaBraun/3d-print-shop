@@ -108,6 +108,13 @@ func main() {
 		}
 	}
 
+	// Loyalty
+	bonusTransactionRepo := postgres.NewBonusTransactionRepo(db)
+	loyaltySettingsRepo := postgres.NewLoyaltySettingsRepo(db)
+	loyaltyService := service.NewLoyaltyService(userRepo, bonusTransactionRepo, loyaltySettingsRepo, db, log)
+	authService.SetLoyaltyService(loyaltyService)
+	orderService.SetLoyaltyService(loyaltyService)
+
 	// User and Review services
 	userService := service.NewUserService(userRepo, log)
 	reviewRepo := postgres.NewReviewRepo(db)
@@ -128,6 +135,7 @@ func main() {
 	orderHandler := handler.NewOrderHandler(orderService)
 	deliveryHandler := handler.NewDeliveryHandler(deliveryService)
 	reviewHandler := handler.NewReviewHandler(reviewService)
+	loyaltyHandler := handler.NewLoyaltyHandler(loyaltyService)
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsService)
 
 	// Set Gin mode
@@ -174,6 +182,7 @@ func main() {
 	userHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	reviewHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	orderHandler.RegisterProtectedRoutes(v1.Group("", authMw))
+	loyaltyHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	cartHandler.RegisterRoutes(v1, authMw)
 
 	// Protected admin routes
@@ -192,6 +201,7 @@ func main() {
 	orderHandler.RegisterAdminRoutes(admin)
 	deliveryHandler.RegisterAdminRoutes(admin)
 	reviewHandler.RegisterAdminRoutes(admin)
+	loyaltyHandler.RegisterAdminRoutes(admin)
 	analyticsHandler.RegisterAdminRoutes(admin)
 
 	// Register Telegram webhook route

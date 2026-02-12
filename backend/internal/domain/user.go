@@ -22,10 +22,13 @@ type User struct {
 	FirstName    *string   `json:"firstName,omitempty"`
 	LastName     *string   `json:"lastName,omitempty"`
 	Username     *string   `json:"username,omitempty"`
-	Role         string    `gorm:"default:customer" json:"role"`
-	IsActive     bool      `gorm:"default:true" json:"isActive"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	Role             string    `gorm:"default:customer" json:"role"`
+	IsActive         bool      `gorm:"default:true" json:"isActive"`
+	ReferralCode     *string   `gorm:"uniqueIndex" json:"referralCode,omitempty"`
+	ReferredByUserID *int      `json:"referredByUserID,omitempty"`
+	BonusBalance     float64   `gorm:"default:0" json:"bonusBalance"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 func (User) TableName() string {

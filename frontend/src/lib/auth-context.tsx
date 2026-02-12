@@ -30,7 +30,7 @@ interface AuthContextType extends AuthState {
   loginWithTelegram: (initData: string) => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   loginWithTelegramWidget: (data: TelegramWidgetData) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, referralCode?: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -152,10 +152,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const register = useCallback(
-    async (name: string, email: string, password: string) => {
+    async (name: string, email: string, password: string, referralCode?: string) => {
+      const payload: Record<string, string> = { name, email, password };
+      if (referralCode) payload.referralCode = referralCode;
       const { data } = await api.post<{
         data: { accessToken: string; refreshToken: string; user: AuthUser };
-      }>("/auth/register", { name, email, password });
+      }>("/auth/register", payload);
       setAuthFromResponse(data.data);
     },
     [setAuthFromResponse]

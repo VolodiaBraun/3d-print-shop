@@ -23,10 +23,16 @@ import (
 
 // AuthService handles user authentication.
 type AuthService struct {
-	userRepo domain.UserRepository
-	tokens   *AuthTokenService
-	botToken string
-	log      *zap.Logger
+	userRepo       domain.UserRepository
+	tokens         *AuthTokenService
+	botToken       string
+	loyaltyService *LoyaltyService
+	log            *zap.Logger
+}
+
+// SetLoyaltyService sets the loyalty service (used to break circular dependency).
+func (s *AuthService) SetLoyaltyService(ls *LoyaltyService) {
+	s.loyaltyService = ls
 }
 
 // NewAuthService creates a new authentication service.
@@ -220,9 +226,10 @@ func (s *AuthService) LoginTelegram(ctx context.Context, initData string) (*Tele
 
 // RegisterInput represents the registration request data.
 type RegisterInput struct {
-	Name     string `json:"name" binding:"required,min=2"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
+	Name         string `json:"name" binding:"required,min=2"`
+	Email        string `json:"email" binding:"required,email"`
+	Password     string `json:"password" binding:"required,min=8"`
+	ReferralCode string `json:"referralCode"`
 }
 
 // RegisterResponse is returned after successful registration.
@@ -278,6 +285,14 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (*Regis
 			return nil, fmt.Errorf("create user: %w", err)
 		}
 		s.log.Info("user registered", zap.Int("userID", user.ID), zap.String("email", input.Email))
+	}
+
+	// Apply referral code if provided (non-blocking)
+	if input.ReferralCode != "" && s.loyaltyService != nil {
+		if err := s.loyaltyService.ApplyReferralCode(ctx, user.ID, input.ReferralCode); err != nil {
+			s.log.Warn("failed to apply referral code during registration",
+				zap.Error(err), zap.Int("userID", user.ID), zap.String("code", input.ReferralCode))
+		}
 	}
 
 	pair, err := s.tokens.GenerateTokenPair(ctx, user.ID, user.Role)

@@ -50,6 +50,7 @@ export interface Product {
   viewsCount: number;
   salesCount: number;
   rating: number;
+  reviewsCount: number;
   createdAt: string;
   updatedAt: string;
 }

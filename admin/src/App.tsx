@@ -14,6 +14,7 @@ import {
   ShoppingCartOutlined,
   GiftOutlined,
   MessageOutlined,
+  HeartOutlined,
 } from "@ant-design/icons";
 
 import { dataProvider } from "./providers/dataProvider";
@@ -28,6 +29,7 @@ import { OrderDetail } from "./pages/orders/detail";
 import { PromoList } from "./pages/promos/list";
 import { PromoForm } from "./pages/promos/form";
 import { ReviewList } from "./pages/reviews/list";
+import { LoyaltySettings } from "./pages/loyalty/settings";
 
 import "@refinedev/antd/dist/reset.css";
 
@@ -77,6 +79,11 @@ const AdminApp = () => {
                 list: "/reviews",
                 meta: { label: "Отзывы", icon: <MessageOutlined /> },
               },
+              {
+                name: "loyalty",
+                list: "/loyalty",
+                meta: { label: "Лояльность", icon: <HeartOutlined /> },
+              },
             ]}
             options={{
               syncWithLocation: true,
@@ -113,6 +120,7 @@ const AdminApp = () => {
                 <Route path="/promos/create" element={<PromoForm />} />
                 <Route path="/promos/:id/edit" element={<PromoForm />} />
                 <Route path="/reviews" element={<ReviewList />} />
+                <Route path="/loyalty" element={<LoyaltySettings />} />
               </Route>
 
               <Route

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, ShoppingCart, ClipboardList } from "lucide-react";
+import { Home, Search, ShoppingCart, ClipboardList, User } from "lucide-react";
 import { useCart } from "@/lib/cart-context";
 
 export function TelegramNavBar() {
@@ -14,6 +14,7 @@ export function TelegramNavBar() {
     { href: "/catalog", icon: Search, label: "Каталог" },
     { href: "/cart", icon: ShoppingCart, label: "Корзина", badge: totalItems },
     { href: "/orders", icon: ClipboardList, label: "Заказы" },
+    { href: "/profile", icon: User, label: "Профиль" },
   ];
 
   return (

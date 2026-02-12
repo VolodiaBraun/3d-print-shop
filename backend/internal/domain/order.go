@@ -14,6 +14,7 @@ type Order struct {
 	Subtotal        float64     `gorm:"type:decimal(10,2);not null" json:"subtotal"`
 	DiscountAmount  float64     `gorm:"type:decimal(10,2);default:0" json:"discountAmount"`
 	DeliveryCost    float64     `gorm:"type:decimal(10,2);default:0" json:"deliveryCost"`
+	BonusDiscount   float64     `gorm:"type:decimal(10,2);default:0" json:"bonusDiscount"`
 	TotalPrice      float64     `gorm:"type:decimal(10,2);not null" json:"totalPrice"`
 	PromoCode       *string     `json:"promoCode,omitempty"`
 	DeliveryMethod  string      `gorm:"not null;default:pickup" json:"deliveryMethod"`

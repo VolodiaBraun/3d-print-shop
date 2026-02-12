@@ -17,7 +17,11 @@ import {
   MessageSquare,
   Loader2,
   Check,
+  Gift,
+  Copy,
+  Wallet,
 } from "lucide-react";
+import { getReferralInfo, type ReferralInfo } from "@/lib/api";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -32,6 +36,8 @@ export default function ProfilePage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [referral, setReferral] = useState<ReferralInfo | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -49,6 +55,10 @@ export default function ProfilePage() {
       })
       .catch(() => setError("Не удалось загрузить профиль"))
       .finally(() => setLoading(false));
+
+    getReferralInfo()
+      .then(setReferral)
+      .catch(() => {});
   }, [isAuthenticated, authLoading, router]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -185,6 +195,60 @@ export default function ProfilePage() {
           </Button>
         </form>
 
+        {/* Referral section */}
+        {referral && (
+          <div className="rounded-lg border p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <Gift className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Реферальная программа</h2>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-4">
+                <Wallet className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Бонусный баланс</p>
+                  <p className="text-lg font-bold">{referral.bonusBalance.toFixed(0)} &#8381;</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-4">
+                <User className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Приглашено друзей</p>
+                  <p className="text-lg font-bold">{referral.referralsCount}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Ваш реферальный код:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded-lg bg-muted px-4 py-2 font-mono text-sm">
+                  {referral.referralCode}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(referral.referralCode);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <Link
+              href="/profile/referral"
+              className="inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Подробнее о реферальной программе &rarr;
+            </Link>
+          </div>
+        )}
+
         {/* Quick links */}
         <div className="grid gap-3 sm:grid-cols-2">
           <Link
@@ -200,6 +264,13 @@ export default function ProfilePage() {
           >
             <MessageSquare className="h-5 w-5" />
             <span className="font-medium">Мои отзывы</span>
+          </Link>
+          <Link
+            href="/profile/bonuses"
+            className="flex items-center gap-3 rounded-lg border p-4 transition-colors hover:bg-muted"
+          >
+            <Wallet className="h-5 w-5" />
+            <span className="font-medium">История бонусов</span>
           </Link>
         </div>
 

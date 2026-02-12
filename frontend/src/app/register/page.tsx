@@ -18,10 +18,18 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const redirectTo = searchParams.get("redirect") || "/";
+  const refFromUrl = searchParams.get("ref") || "";
+
+  useEffect(() => {
+    if (refFromUrl && !referralCode) {
+      setReferralCode(refFromUrl.toUpperCase());
+    }
+  }, [refFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -40,7 +48,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await register(name, email, password);
+      await register(name, email, password, referralCode || undefined);
       router.push(redirectTo);
     } catch (err: unknown) {
       const msg =
@@ -117,6 +125,18 @@ export default function RegisterPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={8}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="referralCode">Реферальный код (необязательно)</Label>
+            <Input
+              id="referralCode"
+              type="text"
+              placeholder="REF-XXXXXX"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+              className="font-mono"
             />
           </div>
 

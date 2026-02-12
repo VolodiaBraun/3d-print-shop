@@ -143,6 +143,7 @@ export interface CreateOrderInput {
   deliveryAddress?: string;
   paymentMethod: string;
   promoCode?: string;
+  bonusAmount?: number;
   notes?: string;
   telegramId?: number;
   pickupPointId?: number;
@@ -171,6 +172,7 @@ export interface OrderResponse {
   status: string;
   subtotal: number;
   discountAmount: number;
+  bonusDiscount: number;
   deliveryCost: number;
   totalPrice: number;
   promoCode?: string;
@@ -387,6 +389,39 @@ export async function createReview(
 
 export async function getMyReviews(): Promise<ReviewData[]> {
   const { data } = await api.get<ApiResponse<ReviewData[]>>("/reviews/my");
+  return data.data;
+}
+
+// --- Referral / Loyalty API ---
+
+export interface ReferralInfo {
+  referralCode: string;
+  referralLink: string;
+  referralsCount: number;
+  bonusBalance: number;
+}
+
+export async function getReferralInfo(): Promise<ReferralInfo> {
+  const { data } = await api.get<ApiResponse<ReferralInfo>>("/users/me/referral");
+  return data.data;
+}
+
+export async function applyReferralCode(code: string): Promise<void> {
+  await api.post("/users/me/referral/apply", { code });
+}
+
+export interface BonusHistoryItem {
+  id: number;
+  userId: number;
+  amount: number;
+  type: string;
+  referenceId?: number;
+  description?: string;
+  createdAt: string;
+}
+
+export async function getBonusHistory(): Promise<BonusHistoryItem[]> {
+  const { data } = await api.get<ApiResponse<BonusHistoryItem[]>>("/users/me/bonuses");
   return data.data;
 }
 

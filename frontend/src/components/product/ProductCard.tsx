@@ -16,7 +16,19 @@ function formatPrice(price: number): string {
   return new Intl.NumberFormat("ru-RU").format(price) + " \u20BD";
 }
 
-function RatingStars({ rating }: { rating: number }) {
+function RatingStars({
+  rating,
+  reviewsCount,
+}: {
+  rating: number;
+  reviewsCount: number;
+}) {
+  if (!rating || rating === 0) {
+    return (
+      <span className="text-xs text-muted-foreground/50">Нет отзывов</span>
+    );
+  }
+
   return (
     <div className="flex items-center gap-1">
       {[1, 2, 3, 4, 5].map((star) => (
@@ -29,11 +41,10 @@ function RatingStars({ rating }: { rating: number }) {
           }`}
         />
       ))}
-      {rating > 0 && (
-        <span className="ml-1 text-xs text-muted-foreground">
-          {rating.toFixed(1)}
-        </span>
-      )}
+      <span className="ml-1 text-xs text-muted-foreground">
+        {rating.toFixed(1)}
+        {reviewsCount > 0 && ` (${reviewsCount})`}
+      </span>
     </div>
   );
 }
@@ -91,7 +102,7 @@ export function ProductCard({ product }: { product: Product }) {
           <h3 className="mb-1 line-clamp-2 text-sm font-medium leading-tight">
             {product.name}
           </h3>
-          <RatingStars rating={product.rating} />
+          <RatingStars rating={product.rating} reviewsCount={product.reviewsCount} />
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-lg font-bold">
               {formatPrice(product.price)}

@@ -59,6 +59,26 @@ func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 	return r.db.WithContext(ctx).Create(user).Error
 }
 
+func (r *UserRepo) FindByReferralCode(ctx context.Context, code string) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Where("referral_code = ?", code).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, domain.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *UserRepo) CountByReferrer(ctx context.Context, referrerID int) (int, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&domain.User{}).
+		Where("referred_by_user_id = ?", referrerID).
+		Count(&count).Error
+	return int(count), err
+}
+
 func (r *UserRepo) Update(ctx context.Context, user *domain.User) error {
 	return r.db.WithContext(ctx).Save(user).Error
 }

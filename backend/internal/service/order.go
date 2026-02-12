@@ -21,6 +21,7 @@ type CreateOrderInput struct {
 	DeliveryAddress *string          `json:"deliveryAddress"`
 	PaymentMethod   string           `json:"paymentMethod" binding:"required,oneof=card cash"`
 	PromoCode       *string          `json:"promoCode"`
+	BonusAmount     float64          `json:"bonusAmount"`
 	Notes           *string          `json:"notes"`
 	TelegramID      *int64           `json:"telegramId"`
 	PickupPointID   *int             `json:"pickupPointId"`
@@ -38,9 +39,15 @@ type OrderService struct {
 	userRepo        domain.UserRepository
 	promoService    *PromoService
 	deliveryService *DeliveryService
+	loyaltyService  *LoyaltyService
 	notifier        domain.OrderNotifier
 	db              *gorm.DB
 	log             *zap.Logger
+}
+
+// SetLoyaltyService sets the loyalty service.
+func (s *OrderService) SetLoyaltyService(ls *LoyaltyService) {
+	s.loyaltyService = ls
 }
 
 // SetNotifier sets the order notifier (used to break circular dependency).
@@ -146,7 +153,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		}
 	}
 
-	// 4. Calculate total
+	// 4. Calculate total (bonusDiscount computed after userID resolution)
 	totalPrice := math.Round((subtotal-discountAmount+deliveryCost)*100) / 100
 	if totalPrice < 0 {
 		totalPrice = 0
@@ -186,13 +193,30 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		}
 	}
 
-	// 7. Create order in transaction
+	// 8. Calculate bonus discount (after userID is known)
+	var bonusDiscount float64
+	if input.BonusAmount > 0 && userID != nil {
+		maxBonus := subtotal - discountAmount
+		if input.BonusAmount > maxBonus {
+			bonusDiscount = maxBonus
+		} else {
+			bonusDiscount = input.BonusAmount
+		}
+		bonusDiscount = math.Round(bonusDiscount*100) / 100
+		totalPrice = math.Round((totalPrice-bonusDiscount)*100) / 100
+		if totalPrice < 0 {
+			totalPrice = 0
+		}
+	}
+
+	// 9. Create order in transaction
 	order := &domain.Order{
 		OrderNumber:       orderNumber,
 		UserID:            userID,
 		Status:            "new",
 		Subtotal:          subtotal,
 		DiscountAmount:    discountAmount,
+		BonusDiscount:     bonusDiscount,
 		DeliveryCost:      deliveryCost,
 		TotalPrice:        totalPrice,
 		PromoCode:         promoCode,
@@ -225,6 +249,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 			}
 			if result.RowsAffected == 0 {
 				return domain.ErrInsufficientStock
+			}
+		}
+
+		// Deduct bonus balance if applied
+		if bonusDiscount > 0 && userID != nil && s.loyaltyService != nil {
+			if err := s.loyaltyService.DeductBonuses(ctx, tx, *userID, bonusDiscount, order.ID); err != nil {
+				return fmt.Errorf("deduct bonuses: %w", err)
 			}
 		}
 
@@ -323,19 +354,26 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id int, newStatus strin
 		return err
 	}
 
-	// Send notification asynchronously
-	if s.notifier != nil {
-		go func() {
-			updated, err := s.orderRepo.FindByID(context.Background(), id)
-			if err != nil {
-				s.log.Warn("failed to load order for notification", zap.Error(err))
-				return
-			}
-			if err := s.notifier.NotifyOrderStatusChanged(context.Background(), updated); err != nil {
+	// Send notification and credit referrer bonus asynchronously
+	go func() {
+		bgCtx := context.Background()
+		updated, err := s.orderRepo.FindByID(bgCtx, id)
+		if err != nil {
+			s.log.Warn("failed to load order for post-status actions", zap.Error(err))
+			return
+		}
+
+		if s.notifier != nil {
+			if err := s.notifier.NotifyOrderStatusChanged(bgCtx, updated); err != nil {
 				s.log.Warn("failed to send status notification", zap.Error(err))
 			}
-		}()
-	}
+		}
+
+		// Credit referrer bonus when order is delivered
+		if newStatus == "delivered" && s.loyaltyService != nil {
+			s.loyaltyService.CreditReferrerBonus(bgCtx, updated)
+		}
+	}()
 
 	return nil
 }

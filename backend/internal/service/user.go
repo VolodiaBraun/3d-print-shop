@@ -20,15 +20,17 @@ func NewUserService(userRepo domain.UserRepository, log *zap.Logger) *UserServic
 }
 
 type ProfileResponse struct {
-	ID         int    `json:"id"`
-	Email      string `json:"email,omitempty"`
-	Phone      string `json:"phone,omitempty"`
-	FirstName  string `json:"firstName,omitempty"`
-	LastName   string `json:"lastName,omitempty"`
-	Username   string `json:"username,omitempty"`
-	TelegramID int64  `json:"telegramId,omitempty"`
-	Role       string `json:"role"`
-	CreatedAt  string `json:"createdAt"`
+	ID           int     `json:"id"`
+	Email        string  `json:"email,omitempty"`
+	Phone        string  `json:"phone,omitempty"`
+	FirstName    string  `json:"firstName,omitempty"`
+	LastName     string  `json:"lastName,omitempty"`
+	Username     string  `json:"username,omitempty"`
+	TelegramID   int64   `json:"telegramId,omitempty"`
+	Role         string  `json:"role"`
+	ReferralCode string  `json:"referralCode,omitempty"`
+	BonusBalance float64 `json:"bonusBalance"`
+	CreatedAt    string  `json:"createdAt"`
 }
 
 func (s *UserService) GetProfile(ctx context.Context, userID int) (*ProfileResponse, error) {
@@ -112,5 +114,9 @@ func userToProfile(u *domain.User) *ProfileResponse {
 	if u.TelegramID != nil {
 		p.TelegramID = *u.TelegramID
 	}
+	if u.ReferralCode != nil {
+		p.ReferralCode = *u.ReferralCode
+	}
+	p.BonusBalance = u.BonusBalance
 	return p
 }

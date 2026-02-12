@@ -1,0 +1,1 @@
+ALTER TABLE orders ADD COLUMN bonus_discount DECIMAL(10,2) NOT NULL DEFAULT 0;

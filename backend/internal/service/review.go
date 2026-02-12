@@ -37,7 +37,7 @@ func NewReviewService(
 }
 
 type CreateReviewInput struct {
-	ProductID int    `json:"productId" binding:"required"`
+	ProductID int    `json:"productId"`
 	OrderID   int    `json:"orderId" binding:"required"`
 	Rating    int    `json:"rating" binding:"required,min=1,max=5"`
 	Comment   string `json:"comment"`

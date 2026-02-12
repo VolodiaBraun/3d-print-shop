@@ -16,15 +16,20 @@ import {
   CheckCircle2,
   ArrowLeft,
   Clock,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCart } from "@/lib/cart-context";
+import { useAuth } from "@/lib/auth-context";
 import { useTelegram } from "@/lib/telegram";
 import {
   createOrder,
   validatePromoCode,
   calculateDelivery,
+  getProfile,
+  updateProfile,
+  getReferralInfo,
   type PromoValidationResult,
   type OrderResponse,
   type DeliveryCalculationResult,
@@ -37,6 +42,7 @@ function formatPrice(price: number): string {
 
 export default function CheckoutPage() {
   const { items, totalItems, totalPrice, clearCart, loaded } = useCart();
+  const { isAuthenticated } = useAuth();
   const { isTelegram, firstName, lastName, userId: telegramId } = useTelegram();
 
   // Contact form
@@ -44,29 +50,57 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
-  // Pre-fill from Telegram
+  // Pre-fill from profile, then fallback to Telegram requestContact
   useEffect(() => {
-    if (!isTelegram) return;
+    let cancelled = false;
 
-    if (firstName && !name) {
-      const tgName = [firstName, lastName].filter(Boolean).join(" ");
-      setName(tgName);
-    }
-
-    const tg = window.Telegram?.WebApp;
-    if (tg && !phone) {
+    async function prefill() {
+      // 1. Try loading saved profile data
       try {
-        tg.requestContact?.((ok: boolean, response?: { responseUnsafe?: { contact?: { phone_number?: string } } }) => {
-          if (ok && response?.responseUnsafe?.contact?.phone_number) {
-            let num = response.responseUnsafe.contact.phone_number;
-            if (!num.startsWith("+")) num = "+" + num;
-            setPhone(num);
-          }
-        });
+        const profile = await getProfile();
+        if (cancelled) return;
+        if (profile.phone && !phone) setPhone(profile.phone);
+        if (!name) {
+          const profileName = [profile.firstName, profile.lastName].filter(Boolean).join(" ");
+          if (profileName) setName(profileName);
+        }
+        if (profile.email && !email) setEmail(profile.email);
+        // If phone already saved — no need to request contact
+        if (profile.phone) return;
       } catch {
-        // requestContact not supported
+        // Not authenticated or error — fall through
+      }
+
+      // 2. Pre-fill name from Telegram context if still empty
+      if (isTelegram && firstName && !name) {
+        const tgName = [firstName, lastName].filter(Boolean).join(" ");
+        if (!cancelled) setName(tgName);
+      }
+
+      // 3. Request phone via Telegram only if not yet filled
+      if (isTelegram && !phone) {
+        const tg = window.Telegram?.WebApp;
+        if (tg) {
+          try {
+            tg.requestContact?.((ok: boolean, response?: { responseUnsafe?: { contact?: { phone_number?: string } } }) => {
+              if (cancelled) return;
+              if (ok && response?.responseUnsafe?.contact?.phone_number) {
+                let num = response.responseUnsafe.contact.phone_number;
+                if (!num.startsWith("+")) num = "+" + num;
+                setPhone(num);
+                // Save phone to profile for future orders
+                updateProfile({ phone: num }).catch(() => {});
+              }
+            });
+          } catch {
+            // requestContact not supported
+          }
+        }
       }
     }
+
+    prefill();
+    return () => { cancelled = true; };
   }, [isTelegram, firstName, lastName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Delivery
@@ -136,6 +170,19 @@ export default function CheckoutPage() {
   const [promoError, setPromoError] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
 
+  // Bonus
+  const [bonusBalance, setBonusBalance] = useState(0);
+  const [useBonuses, setUseBonuses] = useState(false);
+  const [bonusInput, setBonusInput] = useState("");
+
+  // Fetch bonus balance for authenticated users
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    getReferralInfo()
+      .then((info) => setBonusBalance(info.bonusBalance))
+      .catch(() => {});
+  }, [isAuthenticated]);
+
   // Form state
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -143,7 +190,15 @@ export default function CheckoutPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const discountAmount = promoResult?.discountAmount ?? 0;
-  const finalPrice = Math.max(0, totalPrice - discountAmount + deliveryCost);
+  const maxBonusApplicable = Math.max(0, totalPrice - discountAmount);
+  const bonusAmount = useBonuses
+    ? Math.min(
+        parseFloat(bonusInput) || 0,
+        bonusBalance,
+        maxBonusApplicable
+      )
+    : 0;
+  const finalPrice = Math.max(0, totalPrice - discountAmount - bonusAmount + deliveryCost);
 
   async function handleApplyPromo() {
     const code = promoCode.trim();
@@ -205,6 +260,7 @@ export default function CheckoutPage() {
           deliveryMethod === "courier" ? address.trim() : undefined,
         paymentMethod,
         promoCode: promoResult?.code || undefined,
+        bonusAmount: bonusAmount > 0 ? bonusAmount : undefined,
         notes: notes.trim() || undefined,
         pickupPointId: selectedPickupPoint?.id || undefined,
         city: city.trim() || undefined,
@@ -243,6 +299,12 @@ export default function CheckoutPage() {
               <div className="flex justify-between text-green-600">
                 <span>Скидка ({order.promoCode})</span>
                 <span>&minus;{formatPrice(order.discountAmount)}</span>
+              </div>
+            )}
+            {order.bonusDiscount > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>Бонусы</span>
+                <span>&minus;{formatPrice(order.bonusDiscount)}</span>
               </div>
             )}
             {order.deliveryCost > 0 && (
@@ -660,12 +722,55 @@ export default function CheckoutPage() {
               )}
             </div>
 
+            {/* Bonus */}
+            {isAuthenticated && bonusBalance > 0 && (
+              <div className="mt-4 border-t border-border pt-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useBonuses}
+                    onChange={(e) => {
+                      setUseBonuses(e.target.checked);
+                      if (e.target.checked) {
+                        setBonusInput(Math.min(bonusBalance, maxBonusApplicable).toFixed(0));
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-border"
+                  />
+                  <Wallet className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Использовать бонусы</span>
+                  <span className="ml-auto text-sm text-muted-foreground">
+                    {bonusBalance.toFixed(0)} &#8381;
+                  </span>
+                </label>
+                {useBonuses && (
+                  <div className="mt-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={Math.min(bonusBalance, maxBonusApplicable)}
+                      value={bonusInput}
+                      onChange={(e) => setBonusInput(e.target.value)}
+                      className="text-sm"
+                      placeholder={`Макс. ${Math.min(bonusBalance, maxBonusApplicable).toFixed(0)} ₽`}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Total */}
             <div className="mt-4 border-t border-border pt-4">
               {discountAmount > 0 && (
                 <div className="flex justify-between text-sm text-green-600 mb-2">
                   <span>Скидка</span>
                   <span>&minus;{formatPrice(discountAmount)}</span>
+                </div>
+              )}
+              {bonusAmount > 0 && (
+                <div className="flex justify-between text-sm text-green-600 mb-2">
+                  <span>Бонусы</span>
+                  <span>&minus;{formatPrice(bonusAmount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-lg font-bold">
