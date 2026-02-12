@@ -108,16 +108,22 @@ func (s *AnalyticsService) GetDashboardMetrics(ctx context.Context) (*domain.Das
 	topProducts, err := s.repo.GetTopProducts(ctx, 5)
 	if err != nil {
 		s.log.Error("failed to get top products", zap.Error(err))
+	}
+	if topProducts == nil {
 		topProducts = []domain.TopProduct{}
 	}
 	lowStock, err := s.repo.GetLowStockProducts(ctx, 5)
 	if err != nil {
 		s.log.Error("failed to get low stock", zap.Error(err))
+	}
+	if lowStock == nil {
 		lowStock = []domain.LowStockProduct{}
 	}
 	pendingOrders, err := s.repo.GetPendingOrders(ctx, 24)
 	if err != nil {
 		s.log.Error("failed to get pending orders", zap.Error(err))
+	}
+	if pendingOrders == nil {
 		pendingOrders = []domain.PendingOrder{}
 	}
 

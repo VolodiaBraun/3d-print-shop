@@ -156,7 +156,15 @@ export const DashboardPage = () => {
   useEffect(() => {
     api
       .get("/admin/analytics/dashboard")
-      .then((res) => setMetrics(res.data.data))
+      .then((res) => {
+        const m = res.data.data;
+        if (m) {
+          m.topProducts = m.topProducts || [];
+          m.lowStock = m.lowStock || [];
+          m.pendingOrders = m.pendingOrders || [];
+        }
+        setMetrics(m);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
