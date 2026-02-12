@@ -113,6 +113,10 @@ func main() {
 	reviewRepo := postgres.NewReviewRepo(db)
 	reviewService := service.NewReviewService(reviewRepo, orderRepo, productRepo, db, log)
 
+	// Analytics
+	analyticsRepo := postgres.NewAnalyticsRepo(db)
+	analyticsService := service.NewAnalyticsService(analyticsRepo, db, log)
+
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -124,6 +128,7 @@ func main() {
 	orderHandler := handler.NewOrderHandler(orderService)
 	deliveryHandler := handler.NewDeliveryHandler(deliveryService)
 	reviewHandler := handler.NewReviewHandler(reviewService)
+	analyticsHandler := handler.NewAnalyticsHandler(analyticsService)
 
 	// Set Gin mode
 	if cfg.IsProduction() {
@@ -187,6 +192,7 @@ func main() {
 	orderHandler.RegisterAdminRoutes(admin)
 	deliveryHandler.RegisterAdminRoutes(admin)
 	reviewHandler.RegisterAdminRoutes(admin)
+	analyticsHandler.RegisterAdminRoutes(admin)
 
 	// Register Telegram webhook route
 	if telegramBot != nil {
@@ -202,6 +208,10 @@ func main() {
 		IdleTimeout:  30 * time.Second,
 	}
 
+	// Background stats aggregation
+	aggCtx, aggCancel := context.WithCancel(context.Background())
+	go analyticsService.StartBackgroundAggregation(aggCtx)
+
 	// Start server in goroutine
 	go func() {
 		log.Info("listening", zap.String("addr", srv.Addr))
@@ -216,6 +226,8 @@ func main() {
 	<-quit
 
 	log.Info("shutting down server...")
+
+	aggCancel()
 
 	if telegramBot != nil {
 		telegramBot.Stop()
