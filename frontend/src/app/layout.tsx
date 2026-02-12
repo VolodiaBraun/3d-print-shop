@@ -36,12 +36,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className="dark">
-      <head>
-        <TelegramScript />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
+        <TelegramScript />
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>
