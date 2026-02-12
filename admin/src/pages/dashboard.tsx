@@ -308,11 +308,11 @@ export const DashboardPage = () => {
                     year: "numeric",
                   });
                 }}
-                formatter={(value: number | undefined, name: string) => {
-                  if (value == null) return [0, name];
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={((value: number, name: string) => {
                   if (name === "Выручка") return [formatPrice(value), name];
                   return [value, name];
-                }}
+                }) as any}
               />
               <Legend />
               <Line
