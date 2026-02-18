@@ -19,6 +19,7 @@ type Config struct {
 	CORS     CORSConfig
 	SMTP     SMTPConfig
 	Payment  PaymentConfig
+	Bitrix   BitrixConfig
 }
 
 type ServerConfig struct {
@@ -71,6 +72,20 @@ type SMTPConfig struct {
 	Password  string
 	FromEmail string
 	FromName  string
+}
+
+// BitrixConfig holds Bitrix24 integration settings.
+// BITRIX_PORTAL: e.g. "company.bitrix24.ru"
+// BITRIX_USER_ID: numeric user ID from the inbound webhook URL
+// BITRIX_TOKEN: webhook access token
+type BitrixConfig struct {
+	Portal string
+	UserID int
+	Token  string
+}
+
+func (b *BitrixConfig) IsConfigured() bool {
+	return b.Portal != "" && b.Token != "" && b.UserID > 0
 }
 
 // PaymentConfig holds payment gateway settings.
@@ -144,6 +159,11 @@ func Load() (*Config, error) {
 			Provider: getStringOrDefault("PAYMENT_PROVIDER", "mock"),
 			AppURL:   getStringOrDefault("APP_URL", "https://avangard-print.ru"),
 		},
+		Bitrix: BitrixConfig{
+			Portal: viper.GetString("BITRIX_PORTAL"),
+			UserID: getIntOrDefault("BITRIX_USER_ID", 0),
+			Token:  viper.GetString("BITRIX_TOKEN"),
+		},
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -190,6 +210,8 @@ func (c *Config) LogConfig(log *zap.Logger) {
 		zap.Bool("smtp.configured", c.SMTP.Host != ""),
 		zap.String("payment.provider", c.Payment.Provider),
 		zap.String("payment.appURL", c.Payment.AppURL),
+		zap.Bool("bitrix.configured", c.Bitrix.IsConfigured()),
+		zap.String("bitrix.portal", c.Bitrix.Portal),
 	)
 }
 

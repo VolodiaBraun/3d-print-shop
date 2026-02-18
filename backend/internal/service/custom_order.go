@@ -97,6 +97,7 @@ type CustomOrderService struct {
 	customOrderRepo domain.CustomOrderRepository
 	userRepo        domain.UserRepository
 	paymentService  *PaymentService
+	bitrixService   *BitrixService
 	notifier        domain.OrderNotifier
 	emailService    *EmailService
 	s3              *storage.S3Client
@@ -134,6 +135,10 @@ func (s *CustomOrderService) SetEmailService(es *EmailService) {
 
 func (s *CustomOrderService) SetS3Client(s3 *storage.S3Client) {
 	s.s3 = s3
+}
+
+func (s *CustomOrderService) SetBitrixService(bs *BitrixService) {
+	s.bitrixService = bs
 }
 
 // SubmitRequest — клиент оставляет заявку. Заказ создаётся со статусом "new", цена = 0 (неизвестна).
@@ -356,6 +361,11 @@ func (s *CustomOrderService) ConfirmRequest(ctx context.Context, orderID int, to
 		if s.emailService != nil {
 			s.emailService.SendOrderStatusChanged(updated)
 		}
+		if s.bitrixService != nil {
+			if err := s.bitrixService.SyncOrderToBitrix(bgCtx, updated); err != nil {
+				s.log.Warn("failed to sync confirmed order to bitrix", zap.Error(err))
+			}
+		}
 	}()
 
 	return updated, nil
@@ -465,6 +475,11 @@ func (s *CustomOrderService) sendNewOrderNotifications(order *domain.Order) {
 	}
 	if s.emailService != nil {
 		s.emailService.SendOrderCreated(order)
+	}
+	if s.bitrixService != nil {
+		if err := s.bitrixService.SyncOrderToBitrix(bgCtx, order); err != nil {
+			s.log.Warn("failed to sync new order to bitrix", zap.Error(err), zap.String("orderNumber", order.OrderNumber))
+		}
 	}
 }
 

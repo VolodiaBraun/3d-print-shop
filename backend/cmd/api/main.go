@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"github.com/brown/3d-print-shop/internal/bitrix"
 	"github.com/brown/3d-print-shop/internal/cache"
 	"github.com/brown/3d-print-shop/internal/config"
 	mockdelivery "github.com/brown/3d-print-shop/internal/delivery/mock"
@@ -161,6 +162,18 @@ func main() {
 	analyticsRepo := postgres.NewAnalyticsRepo(db)
 	analyticsService := service.NewAnalyticsService(analyticsRepo, db, log)
 
+	// Bitrix24 service (optional; route registered after router is created)
+	var bitrixHandler *handler.BitrixHandler
+	if cfg.Bitrix.IsConfigured() {
+		bitrixClient := bitrix.NewClient(cfg.Bitrix.Portal, cfg.Bitrix.UserID, cfg.Bitrix.Token)
+		bitrixService := service.NewBitrixService(bitrixClient, orderRepo, customOrderRepo, log)
+		customOrderService.SetBitrixService(bitrixService)
+		bitrixHandler = handler.NewBitrixHandler(bitrixService)
+		log.Info("bitrix24 integration enabled", zap.String("portal", cfg.Bitrix.Portal))
+	} else {
+		log.Info("bitrix24 integration disabled (BITRIX_PORTAL/BITRIX_USER_ID/BITRIX_TOKEN not set)")
+	}
+
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
 	userHandler := handler.NewUserHandler(userService)
@@ -251,6 +264,11 @@ func main() {
 	paymentHandler.RegisterWebhookRoute(router)        // POST /webhook/payment
 	paymentHandler.RegisterMockRoutes(v1)              // GET  /api/v1/payment/mock/:orderNumber
 	paymentHandler.RegisterAdminRoutes(admin)          // POST /admin/orders/:id/regenerate-payment
+
+	// Bitrix24 incoming webhook route
+	if bitrixHandler != nil {
+		bitrixHandler.RegisterWebhookRoute(router)     // POST /webhook/bitrix
+	}
 
 	// Register Telegram webhook route
 	if telegramBot != nil {
