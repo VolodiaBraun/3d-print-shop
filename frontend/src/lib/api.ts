@@ -166,6 +166,11 @@ export interface OrderResponseItem {
   product?: OrderItemProduct;
 }
 
+export interface OrderCustomDetails {
+  clientDescription?: string;
+  fileUrls: string[];
+}
+
 export interface OrderResponse {
   id: number;
   orderNumber: string;
@@ -186,6 +191,7 @@ export interface OrderResponse {
   isPaid: boolean;
   notes?: string;
   items: OrderResponseItem[];
+  customDetails?: OrderCustomDetails;
   createdAt: string;
   updatedAt: string;
 }

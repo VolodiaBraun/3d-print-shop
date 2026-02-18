@@ -108,24 +108,44 @@ export default function OrdersPage() {
                 className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50"
               >
                 {order.orderType === "custom" ? (
-                  <FlaskConical className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <FlaskConical className="h-5 w-5 shrink-0 text-violet-500" />
                 ) : (
                   <Package className="h-5 w-5 text-muted-foreground shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium font-mono text-sm">
                       {order.orderNumber}
                     </span>
+                    {order.orderType === "custom" && (
+                      <span className="inline-flex items-center rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-600">
+                        Инд. заказ
+                      </span>
+                    )}
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${status.color}`}
                     >
                       {status.label}
                     </span>
                   </div>
+                  {order.orderType === "custom" &&
+                    order.customDetails?.clientDescription && (
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {order.customDetails.clientDescription}
+                      </p>
+                    )}
                   <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>{formatPrice(order.totalPrice)}</span>
-                    <span>&middot;</span>
+                    {order.totalPrice > 0 ? (
+                      <>
+                        <span>{formatPrice(order.totalPrice)}</span>
+                        <span>&middot;</span>
+                      </>
+                    ) : order.orderType === "custom" ? (
+                      <>
+                        <span className="text-xs">Цена уточняется</span>
+                        <span>&middot;</span>
+                      </>
+                    ) : null}
                     <span>{formatDate(order.createdAt)}</span>
                   </div>
                 </div>

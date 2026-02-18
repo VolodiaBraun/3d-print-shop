@@ -102,6 +102,7 @@ func (r *OrderRepo) ListByUserID(ctx context.Context, userID int) ([]domain.Orde
 	err := r.db.WithContext(ctx).
 		Preload("Items").
 		Preload("Items.Product").
+		Preload("CustomDetails").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&orders).Error
