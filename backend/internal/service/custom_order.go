@@ -24,17 +24,25 @@ const (
 )
 
 var allowedModelExtensions = map[string]string{
+	// 3D model formats
 	".stl":  "model/stl",
 	".obj":  "model/obj",
 	".3mf":  "model/3mf",
 	".step": "application/step",
 	".stp":  "application/step",
 	".zip":  "application/zip",
+	// Image / reference formats
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png":  "image/png",
+	".webp": "image/webp",
+	".heic": "image/heic",
+	".heif": "image/heif",
 }
 
-var ErrTooManyFiles     = errors.New("превышено максимальное количество файлов (5)")
-var ErrFileTooLarge     = errors.New("файл слишком большой (максимум 50 MB)")
-var ErrUnsupportedFormat = errors.New("неподдерживаемый формат файла (STL, OBJ, 3MF, STEP, ZIP)")
+var ErrTooManyFiles      = errors.New("превышено максимальное количество файлов (5)")
+var ErrFileTooLarge      = errors.New("файл слишком большой (максимум 50 MB)")
+var ErrUnsupportedFormat = errors.New("неподдерживаемый формат файла (STL, OBJ, 3MF, STEP, ZIP, JPG, PNG, WEBP)")
 
 // SubmitCustomOrderInput — клиент или фронт отправляет заявку на индивидуальный заказ.
 type SubmitCustomOrderInput struct {

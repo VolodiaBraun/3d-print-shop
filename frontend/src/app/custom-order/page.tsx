@@ -41,7 +41,10 @@ const STEPS = [
   },
 ];
 
-const ALLOWED_EXTENSIONS = [".stl", ".obj", ".3mf", ".step", ".stp", ".zip"];
+const ALLOWED_EXTENSIONS = [
+  ".stl", ".obj", ".3mf", ".step", ".stp", ".zip",
+  ".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif",
+];
 const MAX_FILES = 5;
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
@@ -294,8 +297,8 @@ export default function CustomOrderPage() {
             <section>
               <h2 className="text-lg font-semibold">Файлы (необязательно)</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Поддерживаются STL, OBJ, 3MF, STEP, ZIP. Максимум {MAX_FILES}{" "}
-                файлов по 50 МБ.
+                3D-файлы: STL, OBJ, 3MF, STEP, ZIP. Фото образца: JPG, PNG,
+                WEBP. Максимум {MAX_FILES} файлов по 50 МБ.
               </p>
               <div className="mt-4 space-y-3">
                 {files.map((file, i) => (
@@ -325,7 +328,7 @@ export default function CustomOrderPage() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".stl,.obj,.3mf,.step,.stp,.zip"
+                      accept=".stl,.obj,.3mf,.step,.stp,.zip,.jpg,.jpeg,.png,.webp,.heic,.heif,image/*"
                       multiple
                       className="sr-only"
                       onChange={(e) => addFiles(e.target.files)}
