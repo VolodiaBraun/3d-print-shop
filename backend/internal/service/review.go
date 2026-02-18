@@ -70,7 +70,7 @@ func (s *ReviewService) CreateReview(ctx context.Context, userID int, input Crea
 	// 4. Check product is in the order
 	found := false
 	for _, item := range order.Items {
-		if item.ProductID == input.ProductID {
+		if item.ProductID != nil && *item.ProductID == input.ProductID {
 			found = true
 			break
 		}

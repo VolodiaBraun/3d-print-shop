@@ -127,8 +127,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		itemTotal := math.Round(p.Price*float64(item.Quantity)*100) / 100
 		subtotal += itemTotal
 
+		productID := item.ProductID
 		orderItems = append(orderItems, domain.OrderItem{
-			ProductID:  item.ProductID,
+			ProductID:  &productID,
 			Quantity:   item.Quantity,
 			UnitPrice:  p.Price,
 			TotalPrice: itemTotal,

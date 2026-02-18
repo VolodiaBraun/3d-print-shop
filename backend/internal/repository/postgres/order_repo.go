@@ -29,6 +29,7 @@ func (r *OrderRepo) FindByID(ctx context.Context, id int) (*domain.Order, error)
 		Preload("Items").
 		Preload("Items.Product").
 		Preload("Items.Product.Images", "is_main = true").
+		Preload("CustomDetails").
 		First(&order, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, domain.ErrOrderNotFound
@@ -42,6 +43,7 @@ func (r *OrderRepo) FindByOrderNumber(ctx context.Context, orderNumber string) (
 		Preload("Items").
 		Preload("Items.Product").
 		Preload("Items.Product.Images", "is_main = true").
+		Preload("CustomDetails").
 		Where("order_number = ?", orderNumber).
 		First(&order).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -55,6 +57,9 @@ func (r *OrderRepo) List(ctx context.Context, filter domain.OrderFilter) ([]doma
 
 	if filter.Status != "" {
 		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.OrderType != "" {
+		query = query.Where("order_type = ?", filter.OrderType)
 	}
 
 	var total int64
@@ -73,10 +78,14 @@ func (r *OrderRepo) List(ctx context.Context, filter domain.OrderFilter) ([]doma
 	listQuery := r.db.WithContext(ctx).
 		Preload("Items").
 		Preload("Items.Product").
-		Preload("Items.Product.Images", "is_main = true")
+		Preload("Items.Product.Images", "is_main = true").
+		Preload("CustomDetails")
 
 	if filter.Status != "" {
 		listQuery = listQuery.Where("status = ?", filter.Status)
+	}
+	if filter.OrderType != "" {
+		listQuery = listQuery.Where("order_type = ?", filter.OrderType)
 	}
 
 	var orders []domain.Order

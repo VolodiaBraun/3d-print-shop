@@ -88,7 +88,9 @@ func main() {
 	cartService := service.NewCartService(cartRepo, productRepo, log)
 	promoService := service.NewPromoService(promoRepo, log)
 	orderRepo := postgres.NewOrderRepo(db)
+	customOrderRepo := postgres.NewCustomOrderRepo(db)
 	orderService := service.NewOrderService(orderRepo, productRepo, userRepo, promoService, db, log)
+	customOrderService := service.NewCustomOrderService(orderRepo, customOrderRepo, userRepo, db, log)
 
 	// Delivery
 	deliveryZoneRepo := postgres.NewDeliveryZoneRepo(db)
@@ -101,6 +103,7 @@ func main() {
 	paymentProvider := mockpayment.New(cfg.Payment.AppURL)
 	paymentService := service.NewPaymentService(paymentProvider, orderRepo, db, log, cfg.Payment.AppURL)
 	orderService.SetPaymentService(paymentService)
+	customOrderService.SetPaymentService(paymentService)
 	paymentHandler := handler.NewPaymentHandler(paymentService)
 	log.Info("payment provider initialized", zap.String("provider", paymentProvider.Name()))
 
@@ -113,6 +116,7 @@ func main() {
 		} else {
 			log.Info("telegram bot initialized", zap.String("username", telegramBot.Username()))
 			orderService.SetNotifier(telegramBot)
+			customOrderService.SetNotifier(telegramBot)
 		}
 	}
 
@@ -126,6 +130,7 @@ func main() {
 			log.Info("email service initialized", zap.String("from", cfg.SMTP.FromEmail))
 			emailService = es
 			orderService.SetEmailService(emailService)
+			customOrderService.SetEmailService(emailService)
 		}
 	}
 
@@ -167,6 +172,7 @@ func main() {
 	loyaltyHandler := handler.NewLoyaltyHandler(loyaltyService)
 	contentHandler := handler.NewContentHandler(contentService)
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsService)
+	customOrderHandler := handler.NewCustomOrderHandler(customOrderService)
 
 	// Set Gin mode
 	if cfg.IsProduction() {
@@ -209,6 +215,7 @@ func main() {
 	deliveryHandler.RegisterPublicRoutes(v1)
 	reviewHandler.RegisterPublicRoutes(v1)
 	contentHandler.RegisterPublicRoutes(v1)
+	customOrderHandler.RegisterPublicRoutes(v1)
 	authMw := middleware.AuthRequired(jwtManager)
 	userHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	reviewHandler.RegisterProtectedRoutes(v1.Group("", authMw))
@@ -235,6 +242,7 @@ func main() {
 	loyaltyHandler.RegisterAdminRoutes(admin)
 	contentHandler.RegisterAdminRoutes(admin)
 	analyticsHandler.RegisterAdminRoutes(admin)
+	customOrderHandler.RegisterAdminRoutes(admin)
 
 	// Payment routes
 	paymentHandler.RegisterWebhookRoute(router)        // POST /webhook/payment

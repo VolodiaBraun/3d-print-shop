@@ -37,26 +37,33 @@ type Order struct {
 	DeliveryProvider  *string      `json:"deliveryProvider,omitempty"`
 	EstimatedDelivery *string      `json:"estimatedDelivery,omitempty"`
 	Notes             *string      `json:"notes,omitempty"`
-	Items           []OrderItem `gorm:"foreignKey:OrderID" json:"items"`
+	Items           []OrderItem         `gorm:"foreignKey:OrderID" json:"items"`
+	// CustomDetails is populated only for order_type == "custom".
+	CustomDetails   *CustomOrderDetails `gorm:"foreignKey:OrderID" json:"customDetails,omitempty"`
 	CreatedAt       time.Time   `json:"createdAt"`
 	UpdatedAt       time.Time   `json:"updatedAt"`
 }
 
 type OrderItem struct {
-	ID         int       `gorm:"primaryKey" json:"id"`
-	OrderID    int       `gorm:"not null" json:"orderId"`
-	ProductID  int       `gorm:"not null" json:"productId"`
-	Quantity   int       `gorm:"not null" json:"quantity"`
-	UnitPrice  float64   `gorm:"type:decimal(10,2);not null" json:"unitPrice"`
-	TotalPrice float64   `gorm:"type:decimal(10,2);not null" json:"totalPrice"`
-	Product    Product   `gorm:"foreignKey:ProductID" json:"product,omitempty"`
+	ID         int     `gorm:"primaryKey" json:"id"`
+	OrderID    int     `gorm:"not null" json:"orderId"`
+	// ProductID is nil for custom order line items (not from the catalog).
+	ProductID  *int    `json:"productId,omitempty"`
+	// Custom item fields — used when ProductID is nil.
+	CustomItemName        *string `json:"customItemName,omitempty"`
+	CustomItemDescription *string `json:"customItemDescription,omitempty"`
+	Quantity   int      `gorm:"not null" json:"quantity"`
+	UnitPrice  float64  `gorm:"type:decimal(10,2);not null" json:"unitPrice"`
+	TotalPrice float64  `gorm:"type:decimal(10,2);not null" json:"totalPrice"`
+	Product    *Product `gorm:"foreignKey:ProductID" json:"product,omitempty"`
 	CreatedAt  time.Time `json:"createdAt"`
 }
 
 type OrderFilter struct {
-	Status string
-	Page   int
-	Limit  int
+	Status    string
+	OrderType string // "regular" | "custom" | "" (all)
+	Page      int
+	Limit     int
 }
 
 var (
