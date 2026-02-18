@@ -325,6 +325,7 @@ export async function clearServerCart(): Promise<void> {
 export interface ProfileData {
   id: number;
   email?: string;
+  emailVerified?: boolean;
   phone?: string;
   firstName?: string;
   lastName?: string;
@@ -423,6 +424,69 @@ export interface BonusHistoryItem {
 export async function getBonusHistory(): Promise<BonusHistoryItem[]> {
   const { data } = await api.get<ApiResponse<BonusHistoryItem[]>>("/users/me/bonuses");
   return data.data;
+}
+
+// --- Email Verification API ---
+
+export async function sendVerificationCode(): Promise<void> {
+  await api.post("/users/me/email/verify");
+}
+
+export async function confirmVerificationCode(code: string): Promise<void> {
+  await api.post("/users/me/email/confirm", { code });
+}
+
+// --- Content API ---
+
+export async function getContentBlock<T = Record<string, string>>(slug: string): Promise<T> {
+  const { data } = await api.get<T>(`/content/${slug}`);
+  return data;
+}
+
+// --- Custom Orders (public) ---
+
+export interface SubmitCustomOrderInput {
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  clientDescription?: string;
+  paymentMethod: string;
+  deliveryMethod: string;
+  deliveryAddress?: string;
+  notes?: string;
+}
+
+export interface CustomOrderSubmitResponse {
+  id: number;
+  orderNumber: string;
+  status: string;
+  customerName: string;
+  customerPhone: string;
+  createdAt: string;
+}
+
+export async function submitCustomOrder(
+  input: SubmitCustomOrderInput
+): Promise<CustomOrderSubmitResponse> {
+  const { data } = await api.post<ApiResponse<CustomOrderSubmitResponse>>(
+    "/custom-orders",
+    input
+  );
+  return data.data;
+}
+
+export async function uploadCustomOrderFile(
+  orderId: number,
+  file: File
+): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post<ApiResponse<{ url: string }>>(
+    `/custom-orders/${orderId}/files`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" }, timeout: 60000 }
+  );
+  return data.data.url;
 }
 
 export default api;
