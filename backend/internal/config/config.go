@@ -17,6 +17,8 @@ type Config struct {
 	JWT      JWTConfig
 	Telegram TelegramConfig
 	CORS     CORSConfig
+	SMTP     SMTPConfig
+	Payment  PaymentConfig
 }
 
 type ServerConfig struct {
@@ -60,6 +62,27 @@ type TelegramConfig struct {
 
 type CORSConfig struct {
 	AllowedOrigins []string
+}
+
+type SMTPConfig struct {
+	Host      string
+	Port      int
+	Username  string
+	Password  string
+	FromEmail string
+	FromName  string
+}
+
+// PaymentConfig holds payment gateway settings.
+// PAYMENT_PROVIDER controls which provider is active: "mock" (default) | "yookassa" | "tinkoff".
+// APP_URL is the public frontend URL used to build return and webhook URLs.
+type PaymentConfig struct {
+	Provider string // "mock" by default; switch when integrating a real gateway
+	AppURL   string // e.g. "https://avangard-print.ru"
+}
+
+func (p *PaymentConfig) IsMock() bool {
+	return p.Provider == "" || p.Provider == "mock"
 }
 
 func Load() (*Config, error) {
@@ -109,6 +132,18 @@ func Load() (*Config, error) {
 		CORS: CORSConfig{
 			AllowedOrigins: getStringSlice("ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
 		},
+		SMTP: SMTPConfig{
+			Host:      viper.GetString("SMTP_HOST"),
+			Port:      getIntOrDefault("SMTP_PORT", 465),
+			Username:  viper.GetString("SMTP_USERNAME"),
+			Password:  viper.GetString("SMTP_PASSWORD"),
+			FromEmail: getStringOrDefault("SMTP_FROM_EMAIL", "noreply@avangard-print.ru"),
+			FromName:  getStringOrDefault("SMTP_FROM_NAME", "АВАНГАРД"),
+		},
+		Payment: PaymentConfig{
+			Provider: getStringOrDefault("PAYMENT_PROVIDER", "mock"),
+			AppURL:   getStringOrDefault("APP_URL", "https://avangard-print.ru"),
+		},
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -126,6 +161,10 @@ func (c *Config) validate() error {
 		return fmt.Errorf("JWT_SECRET is required")
 	}
 	return nil
+}
+
+func (s *SMTPConfig) IsConfigured() bool {
+	return s.Host != "" && s.Username != "" && s.Password != ""
 }
 
 func (c *Config) IsProduction() bool {
@@ -148,6 +187,9 @@ func (c *Config) LogConfig(log *zap.Logger) {
 		zap.Duration("jwt.refreshExpiry", c.JWT.RefreshExpiry),
 		zap.Bool("telegram.configured", c.Telegram.BotToken != ""),
 		zap.Strings("cors.allowedOrigins", c.CORS.AllowedOrigins),
+		zap.Bool("smtp.configured", c.SMTP.Host != ""),
+		zap.String("payment.provider", c.Payment.Provider),
+		zap.String("payment.appURL", c.Payment.AppURL),
 	)
 }
 

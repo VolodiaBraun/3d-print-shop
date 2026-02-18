@@ -40,6 +40,8 @@ type OrderService struct {
 	promoService    *PromoService
 	deliveryService *DeliveryService
 	loyaltyService  *LoyaltyService
+	emailService    *EmailService
+	paymentService  *PaymentService
 	notifier        domain.OrderNotifier
 	db              *gorm.DB
 	log             *zap.Logger
@@ -58,6 +60,16 @@ func (s *OrderService) SetNotifier(n domain.OrderNotifier) {
 // SetDeliveryService sets the delivery service for cost calculation.
 func (s *OrderService) SetDeliveryService(ds *DeliveryService) {
 	s.deliveryService = ds
+}
+
+// SetEmailService sets the email service for order notifications.
+func (s *OrderService) SetEmailService(es *EmailService) {
+	s.emailService = es
+}
+
+// SetPaymentService sets the payment service used to generate payment links.
+func (s *OrderService) SetPaymentService(ps *PaymentService) {
+	s.paymentService = ps
 }
 
 func NewOrderService(
@@ -213,6 +225,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 	order := &domain.Order{
 		OrderNumber:       orderNumber,
 		UserID:            userID,
+		OrderType:         "regular",
 		Status:            "new",
 		Subtotal:          subtotal,
 		DiscountAmount:    discountAmount,
@@ -285,17 +298,30 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		zap.Float64("total", order.TotalPrice),
 	)
 
+	// Initiate payment for card orders — synchronous so the link is in the response.
+	if input.PaymentMethod == "card" && s.paymentService != nil {
+		if _, payErr := s.paymentService.InitiatePayment(ctx, created); payErr != nil {
+			s.log.Warn("failed to initiate payment link", zap.Error(payErr))
+		} else {
+			// Reload to include payment_link in the response.
+			if reloaded, reloadErr := s.orderRepo.FindByID(ctx, order.ID); reloadErr == nil {
+				created = reloaded
+			}
+		}
+	}
+
 	// Send notifications asynchronously
-	if s.notifier != nil {
-		go func() {
-			bgCtx := context.Background()
+	go func() {
+		bgCtx := context.Background()
+
+		// Telegram notifications
+		if s.notifier != nil {
 			if err := s.notifier.NotifyOrderCreated(bgCtx, created); err != nil {
 				s.log.Warn("failed to send order created notification", zap.Error(err))
 			}
 			if err := s.notifier.NotifyAdminNewOrder(bgCtx, created); err != nil {
 				s.log.Warn("failed to send admin new order notification", zap.Error(err))
 			}
-			// Check low stock for each ordered product
 			for _, item := range input.Items {
 				p, pErr := s.productRepo.FindByID(bgCtx, item.ProductID)
 				if pErr != nil {
@@ -307,8 +333,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) 
 					}
 				}
 			}
-		}()
-	}
+		}
+
+		// Email notification
+		if s.emailService != nil {
+			s.emailService.SendOrderCreated(created)
+		}
+	}()
 
 	return created, nil
 }
@@ -367,6 +398,11 @@ func (s *OrderService) UpdateStatus(ctx context.Context, id int, newStatus strin
 			if err := s.notifier.NotifyOrderStatusChanged(bgCtx, updated); err != nil {
 				s.log.Warn("failed to send status notification", zap.Error(err))
 			}
+		}
+
+		// Email notification
+		if s.emailService != nil {
+			s.emailService.SendOrderStatusChanged(updated)
 		}
 
 		// Credit referrer bonus when order is delivered

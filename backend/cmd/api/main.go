@@ -18,6 +18,7 @@ import (
 	mockdelivery "github.com/brown/3d-print-shop/internal/delivery/mock"
 	"github.com/brown/3d-print-shop/internal/handler"
 	"github.com/brown/3d-print-shop/internal/middleware"
+	mockpayment "github.com/brown/3d-print-shop/internal/payment/mock"
 	"github.com/brown/3d-print-shop/internal/repository/postgres"
 	"github.com/brown/3d-print-shop/internal/service"
 	"github.com/brown/3d-print-shop/internal/storage"
@@ -96,6 +97,13 @@ func main() {
 	deliveryService := service.NewDeliveryService(mockProvider, deliveryZoneRepo, pickupPointRepo, log)
 	orderService.SetDeliveryService(deliveryService)
 
+	// Payment (provider-agnostic; swap mockpayment for yookassa/tinkoff when ready)
+	paymentProvider := mockpayment.New(cfg.Payment.AppURL)
+	paymentService := service.NewPaymentService(paymentProvider, orderRepo, db, log, cfg.Payment.AppURL)
+	orderService.SetPaymentService(paymentService)
+	paymentHandler := handler.NewPaymentHandler(paymentService)
+	log.Info("payment provider initialized", zap.String("provider", paymentProvider.Name()))
+
 	// Telegram bot (optional)
 	var telegramBot *tgbot.Bot
 	if cfg.Telegram.BotToken != "" {
@@ -108,6 +116,19 @@ func main() {
 		}
 	}
 
+	// Email (optional)
+	var emailService *service.EmailService
+	if cfg.SMTP.IsConfigured() {
+		es, err := service.NewEmailService(cfg.SMTP, log)
+		if err != nil {
+			log.Warn("email service failed to initialize", zap.Error(err))
+		} else {
+			log.Info("email service initialized", zap.String("from", cfg.SMTP.FromEmail))
+			emailService = es
+			orderService.SetEmailService(emailService)
+		}
+	}
+
 	// Loyalty
 	bonusTransactionRepo := postgres.NewBonusTransactionRepo(db)
 	loyaltySettingsRepo := postgres.NewLoyaltySettingsRepo(db)
@@ -117,8 +138,16 @@ func main() {
 
 	// User and Review services
 	userService := service.NewUserService(userRepo, log)
+	userService.SetCache(cacheStore)
+	if emailService != nil {
+		userService.SetEmailService(emailService)
+	}
 	reviewRepo := postgres.NewReviewRepo(db)
 	reviewService := service.NewReviewService(reviewRepo, orderRepo, productRepo, db, log)
+
+	// Content blocks
+	contentBlockRepo := postgres.NewContentBlockRepo(db)
+	contentService := service.NewContentService(contentBlockRepo, cacheStore, log)
 
 	// Analytics
 	analyticsRepo := postgres.NewAnalyticsRepo(db)
@@ -136,6 +165,7 @@ func main() {
 	deliveryHandler := handler.NewDeliveryHandler(deliveryService)
 	reviewHandler := handler.NewReviewHandler(reviewService)
 	loyaltyHandler := handler.NewLoyaltyHandler(loyaltyService)
+	contentHandler := handler.NewContentHandler(contentService)
 	analyticsHandler := handler.NewAnalyticsHandler(analyticsService)
 
 	// Set Gin mode
@@ -178,6 +208,7 @@ func main() {
 	orderHandler.RegisterPublicRoutes(v1)
 	deliveryHandler.RegisterPublicRoutes(v1)
 	reviewHandler.RegisterPublicRoutes(v1)
+	contentHandler.RegisterPublicRoutes(v1)
 	authMw := middleware.AuthRequired(jwtManager)
 	userHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	reviewHandler.RegisterProtectedRoutes(v1.Group("", authMw))
@@ -202,7 +233,13 @@ func main() {
 	deliveryHandler.RegisterAdminRoutes(admin)
 	reviewHandler.RegisterAdminRoutes(admin)
 	loyaltyHandler.RegisterAdminRoutes(admin)
+	contentHandler.RegisterAdminRoutes(admin)
 	analyticsHandler.RegisterAdminRoutes(admin)
+
+	// Payment routes
+	paymentHandler.RegisterWebhookRoute(router)        // POST /webhook/payment
+	paymentHandler.RegisterMockRoutes(v1)              // GET  /api/v1/payment/mock/:orderNumber
+	paymentHandler.RegisterAdminRoutes(admin)          // POST /admin/orders/:id/regenerate-payment
 
 	// Register Telegram webhook route
 	if telegramBot != nil {

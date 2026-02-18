@@ -10,6 +10,8 @@ type Order struct {
 	ID              int         `gorm:"primaryKey" json:"id"`
 	OrderNumber     string      `gorm:"uniqueIndex;not null" json:"orderNumber"`
 	UserID          *int        `json:"userId,omitempty"`
+	// OrderType: "regular" (from catalog) | "custom" (individual 3D print order)
+	OrderType       string      `gorm:"not null;default:regular" json:"orderType"`
 	Status          string      `gorm:"not null;default:new" json:"status"`
 	Subtotal        float64     `gorm:"type:decimal(10,2);not null" json:"subtotal"`
 	DiscountAmount  float64     `gorm:"type:decimal(10,2);default:0" json:"discountAmount"`
@@ -21,6 +23,11 @@ type Order struct {
 	DeliveryAddress *string     `json:"deliveryAddress,omitempty"`
 	PaymentMethod   string      `gorm:"not null;default:card" json:"paymentMethod"`
 	IsPaid          bool        `gorm:"default:false" json:"isPaid"`
+	// Payment gateway fields (populated after InitiatePayment).
+	PaymentLink       *string    `json:"paymentLink,omitempty"`
+	PaymentProvider   *string    `json:"paymentProvider,omitempty"`
+	PaymentProviderID *string    `gorm:"column:payment_provider_id" json:"-"` // internal, not exposed to clients
+	PaymentExpiresAt  *time.Time `json:"paymentExpiresAt,omitempty"`
 	CustomerName    string      `gorm:"not null" json:"customerName"`
 	CustomerPhone   string      `gorm:"not null" json:"customerPhone"`
 	CustomerEmail   *string     `json:"customerEmail,omitempty"`
