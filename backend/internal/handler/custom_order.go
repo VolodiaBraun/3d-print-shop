@@ -23,6 +23,7 @@ func NewCustomOrderHandler(customOrderService *service.CustomOrderService) *Cust
 // RegisterPublicRoutes — маршруты для клиентского фронтенда (без авторизации).
 func (h *CustomOrderHandler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 	rg.POST("/custom-orders", h.SubmitRequest)
+	rg.POST("/custom-orders/:id/files", h.UploadModelFile)
 }
 
 // RegisterAdminRoutes — маршруты для admin-панели.
@@ -34,6 +35,8 @@ func (h *CustomOrderHandler) RegisterAdminRoutes(rg *gin.RouterGroup) {
 	rg.POST("/custom-orders/:id/send-payment", h.SendPaymentLink)
 	rg.POST("/custom-orders/:id/mark-paid", h.MarkPaidManually)
 	rg.PUT("/custom-orders/:id", h.UpdateAdminDetails)
+	rg.POST("/custom-orders/:id/files", h.UploadModelFile)
+	rg.DELETE("/custom-orders/:id/files", h.DeleteModelFile)
 }
 
 // SubmitRequest — POST /api/v1/custom-orders (публичный)
@@ -222,4 +225,75 @@ func (h *CustomOrderHandler) UpdateAdminDetails(c *gin.Context) {
 	}
 
 	response.OK(c, order)
+}
+
+// UploadModelFile — POST /api/v1/custom-orders/:id/files  (также /admin/custom-orders/:id/files)
+// Загружает 3D-файл (STL/OBJ/3MF/STEP/ZIP) к заказу. Multipart form, поле "file".
+func (h *CustomOrderHandler) UploadModelFile(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Некорректный ID")
+		return
+	}
+
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "NO_FILE", "Файл не загружен (поле 'file')")
+		return
+	}
+	defer file.Close()
+
+	publicURL, err := h.customOrderService.UploadModelFile(
+		c.Request.Context(),
+		id,
+		header.Filename,
+		file,
+		header.Size,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrTooManyFiles):
+			response.Error(c, http.StatusUnprocessableEntity, "TOO_MANY_FILES", err.Error())
+		case errors.Is(err, service.ErrFileTooLarge):
+			response.Error(c, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", err.Error())
+		case errors.Is(err, service.ErrUnsupportedFormat):
+			response.Error(c, http.StatusBadRequest, "UNSUPPORTED_FORMAT", err.Error())
+		case errors.Is(err, domain.ErrCustomOrderNotFound):
+			response.NotFound(c, "Заказ не найден")
+		default:
+			response.Error(c, http.StatusInternalServerError, "UPLOAD_ERROR", err.Error())
+		}
+		return
+	}
+
+	response.Created(c, gin.H{"url": publicURL, "fileName": header.Filename})
+}
+
+// DeleteModelFile — DELETE /admin/custom-orders/:id/files
+// Удаляет файл по URL из заказа. Body: {"url": "https://..."}.
+func (h *CustomOrderHandler) DeleteModelFile(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "INVALID_ID", "Некорректный ID")
+		return
+	}
+
+	var body struct {
+		URL string `json:"url" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	if err := h.customOrderService.DeleteModelFile(c.Request.Context(), id, body.URL); err != nil {
+		if errors.Is(err, domain.ErrCustomOrderNotFound) {
+			response.NotFound(c, "Заказ не найден")
+			return
+		}
+		response.Error(c, http.StatusBadRequest, "DELETE_ERROR", err.Error())
+		return
+	}
+
+	response.OK(c, gin.H{"message": "Файл удалён"})
 }

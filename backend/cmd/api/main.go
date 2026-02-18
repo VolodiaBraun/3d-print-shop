@@ -104,6 +104,9 @@ func main() {
 	paymentService := service.NewPaymentService(paymentProvider, orderRepo, db, log, cfg.Payment.AppURL)
 	orderService.SetPaymentService(paymentService)
 	customOrderService.SetPaymentService(paymentService)
+	if s3Client != nil {
+		customOrderService.SetS3Client(s3Client)
+	}
 	paymentHandler := handler.NewPaymentHandler(paymentService)
 	log.Info("payment provider initialized", zap.String("provider", paymentProvider.Name()))
 
@@ -182,7 +185,7 @@ func main() {
 	// Setup router
 	router := gin.New()
 	router.Use(gin.Recovery())
-	router.MaxMultipartMemory = 10 << 20 // 10 MB
+	router.MaxMultipartMemory = 52 << 20 // 52 MB (для 3D-моделей до 50 MB)
 
 	// CORS
 	router.Use(cors.New(cors.Config{

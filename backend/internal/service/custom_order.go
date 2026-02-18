@@ -3,14 +3,38 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math"
+	"path/filepath"
+	"strings"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"github.com/brown/3d-print-shop/internal/domain"
+	"github.com/brown/3d-print-shop/internal/storage"
 )
+
+const (
+	maxModelFileSize  = 50 << 20 // 50 MB
+	maxModelFilesPerOrder = 5
+)
+
+var allowedModelExtensions = map[string]string{
+	".stl":  "model/stl",
+	".obj":  "model/obj",
+	".3mf":  "model/3mf",
+	".step": "application/step",
+	".stp":  "application/step",
+	".zip":  "application/zip",
+}
+
+var ErrTooManyFiles     = errors.New("превышено максимальное количество файлов (5)")
+var ErrFileTooLarge     = errors.New("файл слишком большой (максимум 50 MB)")
+var ErrUnsupportedFormat = errors.New("неподдерживаемый формат файла (STL, OBJ, 3MF, STEP, ZIP)")
 
 // SubmitCustomOrderInput — клиент или фронт отправляет заявку на индивидуальный заказ.
 type SubmitCustomOrderInput struct {
@@ -75,6 +99,7 @@ type CustomOrderService struct {
 	paymentService  *PaymentService
 	notifier        domain.OrderNotifier
 	emailService    *EmailService
+	s3              *storage.S3Client
 	db              *gorm.DB
 	log             *zap.Logger
 }
@@ -105,6 +130,10 @@ func (s *CustomOrderService) SetNotifier(n domain.OrderNotifier) {
 
 func (s *CustomOrderService) SetEmailService(es *EmailService) {
 	s.emailService = es
+}
+
+func (s *CustomOrderService) SetS3Client(s3 *storage.S3Client) {
+	s.s3 = s3
 }
 
 // SubmitRequest — клиент оставляет заявку. Заказ создаётся со статусом "new", цена = 0 (неизвестна).
@@ -437,6 +466,109 @@ func (s *CustomOrderService) sendNewOrderNotifications(order *domain.Order) {
 	if s.emailService != nil {
 		s.emailService.SendOrderCreated(order)
 	}
+}
+
+// UploadModelFile загружает 3D-файл в S3 и добавляет URL в file_urls заказа.
+// Возвращает публичный URL загруженного файла.
+func (s *CustomOrderService) UploadModelFile(ctx context.Context, orderID int, fileName string, file io.Reader, fileSize int64) (string, error) {
+	if s.s3 == nil {
+		return "", fmt.Errorf("file storage not configured")
+	}
+
+	// Validate extension
+	ext := strings.ToLower(filepath.Ext(fileName))
+	contentType, ok := allowedModelExtensions[ext]
+	if !ok {
+		return "", ErrUnsupportedFormat
+	}
+
+	// Validate size
+	if fileSize > maxModelFileSize {
+		return "", ErrFileTooLarge
+	}
+
+	// Load current file list and check count
+	details, err := s.customOrderRepo.FindByOrderID(ctx, orderID)
+	if err != nil {
+		return "", err
+	}
+
+	var urls []string
+	if err := json.Unmarshal(details.FileURLs, &urls); err != nil {
+		urls = []string{}
+	}
+	if len(urls) >= maxModelFilesPerOrder {
+		return "", ErrTooManyFiles
+	}
+
+	// Upload to S3
+	key := fmt.Sprintf("custom-orders/%d/%s%s", orderID, uuid.New().String(), ext)
+	publicURL, err := s.s3.UploadFromReader(ctx, key, file, contentType)
+	if err != nil {
+		return "", fmt.Errorf("upload to s3: %w", err)
+	}
+
+	// Append URL and save
+	urls = append(urls, publicURL)
+	newFileURLs, _ := json.Marshal(urls)
+	details.FileURLs = json.RawMessage(newFileURLs)
+	if err := s.customOrderRepo.Update(ctx, details); err != nil {
+		// Best-effort cleanup of S3 object
+		_ = s.s3.Delete(ctx, key)
+		return "", fmt.Errorf("save file url: %w", err)
+	}
+
+	s.log.Info("model file uploaded",
+		zap.Int("orderID", orderID),
+		zap.String("key", key),
+	)
+
+	return publicURL, nil
+}
+
+// DeleteModelFile удаляет 3D-файл из S3 и убирает URL из file_urls.
+func (s *CustomOrderService) DeleteModelFile(ctx context.Context, orderID int, fileURL string) error {
+	if s.s3 == nil {
+		return fmt.Errorf("file storage not configured")
+	}
+
+	details, err := s.customOrderRepo.FindByOrderID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+
+	var urls []string
+	if err := json.Unmarshal(details.FileURLs, &urls); err != nil {
+		return fmt.Errorf("parse file urls: %w", err)
+	}
+
+	// Remove the target URL from the list
+	newURLs := make([]string, 0, len(urls))
+	found := false
+	for _, u := range urls {
+		if u == fileURL {
+			found = true
+		} else {
+			newURLs = append(newURLs, u)
+		}
+	}
+	if !found {
+		return fmt.Errorf("file not found in order")
+	}
+
+	// Extract S3 key from URL and delete from storage
+	// S3 key starts after publicURL prefix; find "custom-orders/" in the URL.
+	keyIdx := strings.Index(fileURL, "custom-orders/")
+	if keyIdx >= 0 {
+		key := fileURL[keyIdx:]
+		if delErr := s.s3.Delete(ctx, key); delErr != nil {
+			s.log.Warn("failed to delete model file from s3", zap.String("key", key), zap.Error(delErr))
+		}
+	}
+
+	newFileURLs, _ := json.Marshal(newURLs)
+	details.FileURLs = json.RawMessage(newFileURLs)
+	return s.customOrderRepo.Update(ctx, details)
 }
 
 // defaultJSONArray возвращает пустой JSON-массив если input пустой.
