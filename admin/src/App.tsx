@@ -15,6 +15,8 @@ import {
   GiftOutlined,
   MessageOutlined,
   HeartOutlined,
+  EditOutlined,
+  ExperimentOutlined,
 } from "@ant-design/icons";
 
 import { dataProvider } from "./providers/dataProvider";
@@ -26,10 +28,13 @@ import { ProductList } from "./pages/products/list";
 import { ProductForm } from "./pages/products/form";
 import { OrderList } from "./pages/orders/list";
 import { OrderDetail } from "./pages/orders/detail";
+import { CustomOrderList } from "./pages/custom-orders/list";
+import { CustomOrderDetail } from "./pages/custom-orders/detail";
 import { PromoList } from "./pages/promos/list";
 import { PromoForm } from "./pages/promos/form";
 import { ReviewList } from "./pages/reviews/list";
 import { LoyaltySettings } from "./pages/loyalty/settings";
+import { ContentEditor } from "./pages/content/editor";
 
 import "@refinedev/antd/dist/reset.css";
 
@@ -68,6 +73,12 @@ const AdminApp = () => {
                 meta: { label: "Заказы", icon: <ShoppingCartOutlined /> },
               },
               {
+                name: "custom-orders",
+                list: "/custom-orders",
+                show: "/custom-orders/:id",
+                meta: { label: "Инд. заказы", icon: <ExperimentOutlined /> },
+              },
+              {
                 name: "promos",
                 list: "/promos",
                 create: "/promos/create",
@@ -83,6 +94,11 @@ const AdminApp = () => {
                 name: "loyalty",
                 list: "/loyalty",
                 meta: { label: "Лояльность", icon: <HeartOutlined /> },
+              },
+              {
+                name: "content",
+                list: "/content",
+                meta: { label: "Контент", icon: <EditOutlined /> },
               },
             ]}
             options={{
@@ -116,11 +132,14 @@ const AdminApp = () => {
                 <Route path="/products/:id/edit" element={<ProductForm />} />
                 <Route path="/orders" element={<OrderList />} />
                 <Route path="/orders/:id" element={<OrderDetail />} />
+                <Route path="/custom-orders" element={<CustomOrderList />} />
+                <Route path="/custom-orders/:id" element={<CustomOrderDetail />} />
                 <Route path="/promos" element={<PromoList />} />
                 <Route path="/promos/create" element={<PromoForm />} />
                 <Route path="/promos/:id/edit" element={<PromoForm />} />
                 <Route path="/reviews" element={<ReviewList />} />
                 <Route path="/loyalty" element={<LoyaltySettings />} />
+                <Route path="/content" element={<ContentEditor />} />
               </Route>
 
               <Route
