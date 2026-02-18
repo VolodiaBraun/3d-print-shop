@@ -58,6 +58,8 @@ type SubmitCustomOrderInput struct {
 	DeliveryAddress     *string         `json:"deliveryAddress"`
 	PickupPointID       *int            `json:"pickupPointId"`
 	Notes               *string         `json:"notes"`
+	// UserID устанавливается хендлером из JWT-контекста, а не из JSON.
+	UserID              *int            `json:"-"`
 }
 
 // CreateCustomOrderByAdminInput — администратор создаёт заказ вручную (заводит из Bitrix или самостоятельно).
@@ -151,9 +153,11 @@ func (s *CustomOrderService) SetBitrixService(bs *BitrixService) {
 
 // SubmitRequest — клиент оставляет заявку. Заказ создаётся со статусом "new", цена = 0 (неизвестна).
 func (s *CustomOrderService) SubmitRequest(ctx context.Context, input SubmitCustomOrderInput) (*domain.Order, error) {
-	// Resolve or create user
+	// Resolve user: JWT-authenticated user takes priority over Telegram ID.
 	var userID *int
-	if input.TelegramID != nil && *input.TelegramID != 0 {
+	if input.UserID != nil {
+		userID = input.UserID
+	} else if input.TelegramID != nil && *input.TelegramID != 0 {
 		user, err := s.userRepo.FindByTelegramID(ctx, *input.TelegramID)
 		if err == nil {
 			userID = &user.ID
@@ -466,6 +470,21 @@ func (s *CustomOrderService) UpdateAdminDetails(ctx context.Context, orderID int
 // GetByID возвращает любой заказ по ID с полным preload (включая CustomDetails).
 func (s *CustomOrderService) GetByID(ctx context.Context, orderID int) (*domain.Order, error) {
 	return s.orderRepo.FindByID(ctx, orderID)
+}
+
+// GetMyCustomOrders возвращает индивидуальные заказы пользователя (order_type = 'custom').
+func (s *CustomOrderService) GetMyCustomOrders(ctx context.Context, userID int) ([]domain.Order, error) {
+	orders, err := s.orderRepo.ListByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	result := orders[:0]
+	for _, o := range orders {
+		if o.OrderType == "custom" {
+			result = append(result, o)
+		}
+	}
+	return result, nil
 }
 
 // ListCustomOrders — список только custom-заказов.

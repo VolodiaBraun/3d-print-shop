@@ -8,6 +8,7 @@ import {
   Search,
   Loader2,
   Package,
+  FlaskConical,
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,12 +17,16 @@ import { getOrder, getMyOrders, type OrderResponse } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  // Regular order statuses
   new: { label: "Новый", color: "bg-yellow-500/15 text-yellow-600" },
   confirmed: { label: "Подтверждён", color: "bg-blue-500/15 text-blue-600" },
   processing: { label: "В обработке", color: "bg-blue-500/15 text-blue-600" },
   shipped: { label: "Отправлен", color: "bg-violet-500/15 text-violet-600" },
-  delivered: { label: "Доставлен", color: "bg-green-500/15 text-green-600" },
+  delivered: { label: "Выдан", color: "bg-green-500/15 text-green-600" },
   cancelled: { label: "Отменён", color: "bg-red-500/15 text-red-600" },
+  // Custom order statuses
+  in_progress: { label: "В работе", color: "bg-cyan-500/15 text-cyan-600" },
+  ready: { label: "Готов", color: "bg-purple-500/15 text-purple-600" },
 };
 
 function formatPrice(price: number): string {
@@ -102,7 +107,11 @@ export default function OrdersPage() {
                 href={`/order/${order.orderNumber}`}
                 className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50"
               >
-                <Package className="h-5 w-5 text-muted-foreground shrink-0" />
+                {order.orderType === "custom" ? (
+                  <FlaskConical className="h-5 w-5 text-muted-foreground shrink-0" />
+                ) : (
+                  <Package className="h-5 w-5 text-muted-foreground shrink-0" />
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium font-mono text-sm">

@@ -169,6 +169,7 @@ export interface OrderResponseItem {
 export interface OrderResponse {
   id: number;
   orderNumber: string;
+  orderType: string; // "regular" | "custom"
   status: string;
   subtotal: number;
   discountAmount: number;

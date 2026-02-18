@@ -231,8 +231,12 @@ func main() {
 	deliveryHandler.RegisterPublicRoutes(v1)
 	reviewHandler.RegisterPublicRoutes(v1)
 	contentHandler.RegisterPublicRoutes(v1)
-	customOrderHandler.RegisterPublicRoutes(v1)
+	// Публичные роуты custom-orders с опциональной авторизацией:
+	// если токен есть — userID попадает в контекст и заказ привязывается к аккаунту.
+	optionalAuthMw := middleware.OptionalAuth(jwtManager)
+	customOrderHandler.RegisterPublicRoutes(v1.Group("", optionalAuthMw))
 	authMw := middleware.AuthRequired(jwtManager)
+	customOrderHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	userHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	reviewHandler.RegisterProtectedRoutes(v1.Group("", authMw))
 	orderHandler.RegisterProtectedRoutes(v1.Group("", authMw))

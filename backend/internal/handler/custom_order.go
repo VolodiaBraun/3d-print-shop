@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/brown/3d-print-shop/internal/domain"
+	"github.com/brown/3d-print-shop/internal/middleware"
 	"github.com/brown/3d-print-shop/internal/service"
 	"github.com/brown/3d-print-shop/pkg/response"
 )
@@ -20,10 +21,16 @@ func NewCustomOrderHandler(customOrderService *service.CustomOrderService) *Cust
 	return &CustomOrderHandler{customOrderService: customOrderService}
 }
 
-// RegisterPublicRoutes — маршруты для клиентского фронтенда (без авторизации).
+// RegisterPublicRoutes — маршруты для клиентского фронтенда.
+// Вызывается с группой, оснащённой OptionalAuth, чтобы получать userID когда пользователь авторизован.
 func (h *CustomOrderHandler) RegisterPublicRoutes(rg *gin.RouterGroup) {
 	rg.POST("/custom-orders", h.SubmitRequest)
 	rg.POST("/custom-orders/:id/files", h.UploadModelFile)
+}
+
+// RegisterProtectedRoutes — маршруты только для авторизованных клиентов.
+func (h *CustomOrderHandler) RegisterProtectedRoutes(rg *gin.RouterGroup) {
+	rg.GET("/custom-orders/my", h.GetMyCustomOrders)
 }
 
 // RegisterAdminRoutes — маршруты для admin-панели.
@@ -39,13 +46,18 @@ func (h *CustomOrderHandler) RegisterAdminRoutes(rg *gin.RouterGroup) {
 	rg.DELETE("/custom-orders/:id/files", h.DeleteModelFile)
 }
 
-// SubmitRequest — POST /api/v1/custom-orders (публичный)
+// SubmitRequest — POST /api/v1/custom-orders (публичный, с OptionalAuth)
 // Клиент оставляет заявку. Цена неизвестна, статус = new.
 func (h *CustomOrderHandler) SubmitRequest(c *gin.Context) {
 	var input service.SubmitCustomOrderInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		response.Error(c, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 		return
+	}
+
+	// Если пользователь авторизован — привязываем заказ к его аккаунту.
+	if userID, ok := middleware.GetUserID(c); ok {
+		input.UserID = &userID
 	}
 
 	order, err := h.customOrderService.SubmitRequest(c.Request.Context(), input)
@@ -55,6 +67,18 @@ func (h *CustomOrderHandler) SubmitRequest(c *gin.Context) {
 	}
 
 	response.Created(c, order)
+}
+
+// GetMyCustomOrders — GET /api/v1/custom-orders/my (авторизованный)
+// Возвращает индивидуальные заказы текущего пользователя.
+func (h *CustomOrderHandler) GetMyCustomOrders(c *gin.Context) {
+	userID, _ := middleware.GetUserID(c)
+	orders, err := h.customOrderService.GetMyCustomOrders(c.Request.Context(), userID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "LIST_ERROR", err.Error())
+		return
+	}
+	response.OK(c, orders)
 }
 
 // CreateByAdmin — POST /admin/custom-orders

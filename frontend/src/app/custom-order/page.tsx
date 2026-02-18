@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   ClipboardList,
@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { submitCustomOrder, uploadCustomOrderFile } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { submitCustomOrder, uploadCustomOrderFile, getProfile } from "@/lib/api";
 
 const STEPS = [
   {
@@ -49,9 +50,25 @@ const MAX_FILES = 5;
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
 export default function CustomOrderPage() {
+  const { isAuthenticated } = useAuth();
+
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+
+  // Pre-fill from profile when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    getProfile()
+      .then((profile) => {
+        if (profile.firstName || profile.lastName) {
+          setName([profile.firstName, profile.lastName].filter(Boolean).join(" "));
+        }
+        if (profile.phone) setPhone(profile.phone);
+        if (profile.email) setEmail(profile.email);
+      })
+      .catch(() => {});
+  }, [isAuthenticated]);
   const [description, setDescription] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [deliveryMethod, setDeliveryMethod] = useState("pickup");

@@ -79,6 +79,31 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 	}
 }
 
+// OptionalAuth is like AuthRequired but never blocks the request.
+// If a valid Bearer token is present it sets userID/role in context, otherwise just calls Next().
+func OptionalAuth(jwtManager *jwtpkg.Manager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if header == "" {
+			c.Next()
+			return
+		}
+		parts := strings.SplitN(header, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
+			c.Next()
+			return
+		}
+		claims, err := jwtManager.ValidateAccessToken(parts[1])
+		if err != nil {
+			c.Next()
+			return
+		}
+		c.Set(ContextKeyUserID, claims.UserID)
+		c.Set(ContextKeyRole, claims.Role)
+		c.Next()
+	}
+}
+
 // GetUserID extracts the user ID from the Gin context.
 func GetUserID(c *gin.Context) (int, bool) {
 	id, exists := c.Get(ContextKeyUserID)
