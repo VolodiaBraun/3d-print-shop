@@ -30,6 +30,7 @@ import { OrderList } from "./pages/orders/list";
 import { OrderDetail } from "./pages/orders/detail";
 import { CustomOrderList } from "./pages/custom-orders/list";
 import { CustomOrderDetail } from "./pages/custom-orders/detail";
+import { CustomOrderCreate } from "./pages/custom-orders/create";
 import { PromoList } from "./pages/promos/list";
 import { PromoForm } from "./pages/promos/form";
 import { ReviewList } from "./pages/reviews/list";
@@ -75,6 +76,7 @@ const AdminApp = () => {
               {
                 name: "custom-orders",
                 list: "/custom-orders",
+                create: "/custom-orders/create",
                 show: "/custom-orders/:id",
                 meta: { label: "Инд. заказы", icon: <ExperimentOutlined /> },
               },
@@ -133,6 +135,7 @@ const AdminApp = () => {
                 <Route path="/orders" element={<OrderList />} />
                 <Route path="/orders/:id" element={<OrderDetail />} />
                 <Route path="/custom-orders" element={<CustomOrderList />} />
+                <Route path="/custom-orders/create" element={<CustomOrderCreate />} />
                 <Route path="/custom-orders/:id" element={<CustomOrderDetail />} />
                 <Route path="/promos" element={<PromoList />} />
                 <Route path="/promos/create" element={<PromoForm />} />
