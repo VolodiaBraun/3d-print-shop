@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
-import { getProfile, updateProfile, type ProfileData } from "@/lib/api";
+import {
+  getProfile,
+  updateProfile,
+  sendVerificationCode,
+  confirmVerificationCode,
+  type ProfileData,
+} from "@/lib/api";
 import {
   User,
   Mail,
@@ -20,6 +26,8 @@ import {
   Gift,
   Copy,
   Wallet,
+  ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 import { getReferralInfo, type ReferralInfo } from "@/lib/api";
 
@@ -36,8 +44,17 @@ export default function ProfilePage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [referral, setReferral] = useState<ReferralInfo | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Verification state
+  const [showVerify, setShowVerify] = useState(false);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifySending, setVerifySending] = useState(false);
+  const [verifyConfirming, setVerifyConfirming] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+  const [verifySuccess, setVerifySuccess] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -52,6 +69,10 @@ export default function ProfilePage() {
         setFirstName(data.firstName || "");
         setLastName(data.lastName || "");
         setPhone(data.phone || "");
+        setEmail(data.email || "");
+        if (data.email && !data.emailVerified) {
+          setShowVerify(true);
+        }
       })
       .catch(() => setError("Не удалось загрузить профиль"))
       .finally(() => setLoading(false));
@@ -67,14 +88,64 @@ export default function ProfilePage() {
     setSuccess(false);
     setSaving(true);
     try {
-      const updated = await updateProfile({ firstName, lastName, phone });
+      const updated = await updateProfile({
+        firstName,
+        lastName,
+        phone,
+        email: email || undefined,
+      });
       setProfile(updated);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
+
+      // Show verification if email changed and not verified
+      if (updated.email && !updated.emailVerified) {
+        setShowVerify(true);
+        setVerifyCode("");
+        setVerifyError("");
+        setVerifySuccess(false);
+      } else {
+        setShowVerify(false);
+      }
     } catch {
       setError("Не удалось сохранить");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendCode = async () => {
+    setVerifySending(true);
+    setVerifyError("");
+    try {
+      await sendVerificationCode();
+      setVerifyError("");
+    } catch {
+      setVerifyError("Не удалось отправить код");
+    } finally {
+      setVerifySending(false);
+    }
+  };
+
+  const handleConfirmCode = async () => {
+    if (verifyCode.length !== 6) {
+      setVerifyError("Введите 6-значный код");
+      return;
+    }
+    setVerifyConfirming(true);
+    setVerifyError("");
+    try {
+      await confirmVerificationCode(verifyCode);
+      setVerifySuccess(true);
+      setShowVerify(false);
+      setProfile((prev) => (prev ? { ...prev, emailVerified: true } : prev));
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } })
+          ?.response?.data?.error?.message || "Неверный код";
+      setVerifyError(msg);
+    } finally {
+      setVerifyConfirming(false);
     }
   };
 
@@ -103,9 +174,19 @@ export default function ProfilePage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex items-center gap-3 rounded-lg border p-4">
             <Mail className="h-5 w-5 text-muted-foreground" />
-            <div>
+            <div className="flex-1">
               <p className="text-xs text-muted-foreground">Email</p>
-              <p className="text-sm font-medium">{profile.email || "Не указан"}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">
+                  {profile.email || "Не указан"}
+                </p>
+                {profile.email &&
+                  (profile.emailVerified ? (
+                    <ShieldCheck className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <ShieldAlert className="h-4 w-4 text-amber-500" />
+                  ))}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3 rounded-lg border p-4">
@@ -138,6 +219,80 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Email hint for Telegram users */}
+        {profile.telegramId && !profile.email && (
+          <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+            <Mail className="h-5 w-5 flex-shrink-0 text-blue-500" />
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              Укажите email, чтобы получать уведомления о статусе заказов
+            </p>
+          </div>
+        )}
+
+        {/* Email verification block */}
+        {showVerify && !verifySuccess && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3 dark:border-amber-900 dark:bg-amber-950/30">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" />
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                Email не подтверждён
+              </p>
+            </div>
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              Мы отправили код на {profile.email}. Введите его ниже или
+              запросите повторно.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                className="w-32 text-center font-mono text-lg tracking-widest"
+                value={verifyCode}
+                onChange={(e) =>
+                  setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+              />
+              <Button
+                size="sm"
+                onClick={handleConfirmCode}
+                disabled={verifyConfirming || verifyCode.length !== 6}
+              >
+                {verifyConfirming ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Подтвердить"
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSendCode}
+                disabled={verifySending}
+              >
+                {verifySending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Отправить код"
+                )}
+              </Button>
+            </div>
+            {verifyError && (
+              <p className="text-sm text-red-600">{verifyError}</p>
+            )}
+          </div>
+        )}
+
+        {verifySuccess && (
+          <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/30">
+            <ShieldCheck className="h-5 w-5 text-green-500" />
+            <p className="text-sm font-medium text-green-700 dark:text-green-300">
+              Email успешно подтверждён!
+            </p>
+          </div>
+        )}
 
         {/* Edit form */}
         <form onSubmit={handleSave} className="space-y-4 rounded-lg border p-6">
@@ -185,6 +340,21 @@ export default function ProfilePage() {
                 placeholder="+7 (999) 123-45-67"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                className="pl-10"
+                placeholder="example@mail.ru"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
           </div>

@@ -22,6 +22,7 @@ type User struct {
 	FirstName    *string   `json:"firstName,omitempty"`
 	LastName     *string   `json:"lastName,omitempty"`
 	Username     *string   `json:"username,omitempty"`
+	EmailVerified    bool      `gorm:"default:false" json:"emailVerified"`
 	Role             string    `gorm:"default:customer" json:"role"`
 	IsActive         bool      `gorm:"default:true" json:"isActive"`
 	ReferralCode     *string   `gorm:"uniqueIndex" json:"referralCode,omitempty"`

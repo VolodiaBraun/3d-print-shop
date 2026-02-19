@@ -16,6 +16,9 @@ import {
   User,
   Phone,
   Mail,
+  FlaskConical,
+  FileText,
+  Paperclip,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOrder, type OrderResponse } from "@/lib/api";
@@ -35,6 +38,7 @@ function formatDate(dateStr: string): string {
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  // Regular order statuses
   new: { label: "Новый", color: "bg-yellow-500/15 text-yellow-600" },
   confirmed: { label: "Подтверждён", color: "bg-blue-500/15 text-blue-600" },
   processing: {
@@ -46,14 +50,18 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
     color: "bg-violet-500/15 text-violet-600",
   },
   delivered: {
-    label: "Доставлен",
+    label: "Выдан",
     color: "bg-green-500/15 text-green-600",
   },
   cancelled: { label: "Отменён", color: "bg-red-500/15 text-red-600" },
+  // Custom order statuses
+  in_progress: { label: "В работе", color: "bg-cyan-500/15 text-cyan-600" },
+  ready: { label: "Готов", color: "bg-purple-500/15 text-purple-600" },
 };
 
 const DELIVERY_MAP: Record<string, string> = {
   pickup: "Самовывоз",
+  pickup_point: "Самовывоз",
   courier: "Курьер",
 };
 
@@ -129,10 +137,20 @@ export default function OrderPage() {
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">
-            Заказ{" "}
-            <span className="font-mono">{order.orderNumber}</span>
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            {order.orderType === "custom" && (
+              <FlaskConical className="h-6 w-6 text-violet-500 shrink-0" />
+            )}
+            <h1 className="text-2xl font-bold">
+              Заказ{" "}
+              <span className="font-mono">{order.orderNumber}</span>
+            </h1>
+            {order.orderType === "custom" && (
+              <span className="inline-flex items-center rounded-full bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-600">
+                Индивидуальный заказ
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             от {formatDate(order.createdAt)}
           </p>
@@ -147,62 +165,117 @@ export default function OrderPage() {
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
         {/* Left: Items + Info */}
         <div className="space-y-8">
-          {/* Order items */}
-          <section>
-            <h2 className="text-lg font-semibold">Товары</h2>
-            <div className="mt-4 space-y-3">
-              {order.items.map((item) => {
-                const mainImage = item.product?.images?.find(
-                  (img) => img.isMain
-                );
-                const imageUrl =
-                  mainImage?.urlThumbnail || mainImage?.url || null;
-
-                return (
-                  <div
-                    key={item.id}
-                    className="flex gap-4 rounded-lg border border-border bg-card p-4"
-                  >
-                    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
-                      {imageUrl ? (
-                        <Image
-                          src={imageUrl}
-                          alt={item.product?.name || ""}
-                          fill
-                          className="object-cover"
-                          sizes="64px"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-muted-foreground">
-                          <ShoppingCart className="h-5 w-5" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {item.product ? (
-                        <Link
-                          href={`/product/${item.product.slug}`}
-                          className="font-medium hover:text-primary transition-colors"
-                        >
-                          {item.product.name}
-                        </Link>
-                      ) : (
-                        <span className="font-medium">
-                          Товар #{item.productId}
-                        </span>
-                      )}
-                      <p className="text-sm text-muted-foreground">
-                        {item.quantity} x {formatPrice(item.unitPrice)}
+          {/* Custom order details OR regular items */}
+          {order.orderType === "custom" ? (
+            <section>
+              <h2 className="text-lg font-semibold">Детали заказа</h2>
+              <div className="mt-4 rounded-lg border border-border bg-card p-4 space-y-4">
+                {order.customDetails?.clientDescription && (
+                  <div className="flex gap-3">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium mb-1">Описание</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {order.customDetails.clientDescription}
                       </p>
                     </div>
-                    <span className="font-semibold shrink-0">
-                      {formatPrice(item.totalPrice)}
-                    </span>
                   </div>
-                );
-              })}
-            </div>
-          </section>
+                )}
+                {order.customDetails?.fileUrls &&
+                  order.customDetails.fileUrls.length > 0 && (
+                    <div className="flex gap-3">
+                      <Paperclip className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium mb-1">
+                          Прикреплённые файлы (
+                          {order.customDetails.fileUrls.length})
+                        </p>
+                        <ul className="space-y-1">
+                          {order.customDetails.fileUrls.map((url, idx) => {
+                            const name = url.split("/").pop() || `Файл ${idx + 1}`;
+                            return (
+                              <li key={idx}>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-primary hover:underline break-all"
+                                >
+                                  {name}
+                                </a>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                {!order.customDetails?.clientDescription &&
+                  (!order.customDetails?.fileUrls ||
+                    order.customDetails.fileUrls.length === 0) && (
+                    <p className="text-sm text-muted-foreground">
+                      Детали заказа уточняются менеджером
+                    </p>
+                  )}
+              </div>
+            </section>
+          ) : (
+            <section>
+              <h2 className="text-lg font-semibold">Товары</h2>
+              <div className="mt-4 space-y-3">
+                {order.items.map((item) => {
+                  const mainImage = item.product?.images?.find(
+                    (img) => img.isMain
+                  );
+                  const imageUrl =
+                    mainImage?.urlThumbnail || mainImage?.url || null;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex gap-4 rounded-lg border border-border bg-card p-4"
+                    >
+                      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
+                        {imageUrl ? (
+                          <Image
+                            src={imageUrl}
+                            alt={item.product?.name || ""}
+                            fill
+                            className="object-cover"
+                            sizes="64px"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-muted-foreground">
+                            <ShoppingCart className="h-5 w-5" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {item.product ? (
+                          <Link
+                            href={`/product/${item.product.slug}`}
+                            className="font-medium hover:text-primary transition-colors"
+                          >
+                            {item.product.name}
+                          </Link>
+                        ) : (
+                          <span className="font-medium">
+                            Товар #{item.productId}
+                          </span>
+                        )}
+                        <p className="text-sm text-muted-foreground">
+                          {item.quantity} x {formatPrice(item.unitPrice)}
+                        </p>
+                      </div>
+                      <span className="font-semibold shrink-0">
+                        {formatPrice(item.totalPrice)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Contact info */}
           <section>
@@ -265,32 +338,51 @@ export default function OrderPage() {
         <div className="lg:sticky lg:top-24 self-start">
           <div className="rounded-lg border border-border bg-card p-6">
             <h2 className="text-lg font-bold">Итого</h2>
-            <div className="mt-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Товары</span>
-                <span>{formatPrice(order.subtotal)}</span>
-              </div>
-              {order.discountAmount > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>
-                    Скидка{order.promoCode ? ` (${order.promoCode})` : ""}
-                  </span>
-                  <span>&minus;{formatPrice(order.discountAmount)}</span>
+            {order.orderType === "custom" && order.totalPrice === 0 ? (
+              <div className="mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Стоимость будет рассчитана менеджером после анализа вашего
+                  заказа и согласована с вами.
+                </p>
+                <div className="mt-4 border-t border-border pt-4">
+                  <div className="flex justify-between text-lg font-semibold">
+                    <span>К оплате</span>
+                    <span className="text-muted-foreground">Уточняется</span>
+                  </div>
                 </div>
-              )}
-              {order.deliveryCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Доставка</span>
-                  <span>{formatPrice(order.deliveryCost)}</span>
-                </div>
-              )}
-            </div>
-            <div className="mt-4 border-t border-border pt-4">
-              <div className="flex justify-between text-lg font-bold">
-                <span>К оплате</span>
-                <span>{formatPrice(order.totalPrice)}</span>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="mt-4 space-y-2 text-sm">
+                  {order.orderType !== "custom" && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Товары</span>
+                      <span>{formatPrice(order.subtotal)}</span>
+                    </div>
+                  )}
+                  {order.discountAmount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>
+                        Скидка{order.promoCode ? ` (${order.promoCode})` : ""}
+                      </span>
+                      <span>&minus;{formatPrice(order.discountAmount)}</span>
+                    </div>
+                  )}
+                  {order.deliveryCost > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Доставка</span>
+                      <span>{formatPrice(order.deliveryCost)}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 border-t border-border pt-4">
+                  <div className="flex justify-between text-lg font-bold">
+                    <span>К оплате</span>
+                    <span>{formatPrice(order.totalPrice)}</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
