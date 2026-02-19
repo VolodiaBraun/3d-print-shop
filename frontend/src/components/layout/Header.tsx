@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Search, Menu, X, User, LogOut } from "lucide-react";
+import { ShoppingCart, Search, Menu, X, User, LogOut, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-context";
@@ -42,6 +42,13 @@ export function Header() {
             className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             Популярное
+          </Link>
+          <Link
+            href="/custom-order"
+            className="flex items-center gap-1.5 text-sm font-medium text-violet-500 transition-colors hover:text-violet-400"
+          >
+            <FlaskConical className="h-4 w-4" />
+            Заказать печать
           </Link>
         </nav>
 
@@ -129,6 +136,14 @@ export function Header() {
               onClick={() => setMobileMenuOpen(false)}
             >
               Популярное
+            </Link>
+            <Link
+              href="/custom-order"
+              className="flex items-center gap-2 text-sm font-medium text-violet-500"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <FlaskConical className="h-4 w-4" />
+              Заказать печать
             </Link>
             <hr className="border-border" />
             {isAuthenticated ? (
